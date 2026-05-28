@@ -1,4 +1,4 @@
-# Zen Ledger V2
+# Zen Compta
 
 Private rebuild of Bouddha-Compta.
 
@@ -35,4 +35,3 @@ The final stack is still open, but the current preferred direction is:
 
 This repo currently contains planning and project guardrails only. No production
 code has been migrated from the old repository.
-
