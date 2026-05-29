@@ -21,17 +21,72 @@ bank connections.
 - Tests are required for accounting calculations and critical workflows.
 - The old project is a reference prototype only.
 
-## Proposed Stack
+## Stack
 
-The final stack is still open, but the current preferred direction is:
+The current V2 direction is:
 
-- Backend: FastAPI or Django, to be decided before implementation.
+- Frontend: Next.js, React, TypeScript, Tailwind CSS.
+- Backend: FastAPI, Python, Pydantic.
 - Database: PostgreSQL.
-- Frontend: Next.js if using a separate API backend, or Django templates/HTMX if using Django.
-- Background jobs: Redis-backed worker for document extraction and bank sync.
+- Migrations: Alembic.
+- Background jobs: Redis-backed worker later, when needed.
 - File storage: S3-compatible bucket or equivalent managed object storage.
+
+## Local Development
+
+### Requirements
+
+- Node.js 24+
+- npm 11+
+- Python 3.11+
+- Docker
+
+### Start PostgreSQL
+
+```powershell
+docker compose up -d postgres
+```
+
+### Backend
+
+```powershell
+Copy-Item .env.example .env
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements-dev.txt
+uvicorn app.main:app --reload
+```
+
+Health check:
+
+```text
+http://localhost:8000/api/health
+```
+
+### Frontend
+
+```powershell
+cd frontend
+Copy-Item .env.example .env.local
+npm install
+npm run dev
+```
+
+Frontend:
+
+```text
+http://localhost:3000
+```
+
+### Checks
+
+```powershell
+.\scripts\check.ps1
+```
 
 ## Local Status
 
-This repo currently contains planning and project guardrails only. No production
+The repo contains the initial Next.js/FastAPI/PostgreSQL scaffold. No production
 code has been migrated from the old repository.
