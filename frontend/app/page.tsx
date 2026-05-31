@@ -404,53 +404,107 @@ function InvoiceList({
         ) : (
           invoices.slice(0, 8).map((invoice) => (
             <article
-              className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_140px_140px_140px_auto]"
+              className="px-5 py-4"
               key={invoice.id}
             >
-              <div>
-                <p className="font-semibold text-slate-950">
-                  {invoice.supplier_name}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  {invoice.invoice_date ?? "Date manquante"}
-                  {invoice.invoice_number ? ` - ${invoice.invoice_number}` : ""}
-                </p>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_120px_120px_120px_120px_auto]">
+                <div>
+                  <p className="font-semibold text-slate-950">
+                    {invoice.supplier_name}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {invoice.invoice_date ?? "Date manquante"}
+                    {invoice.invoice_number ? ` - ${invoice.invoice_number}` : ""}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Statut</p>
+                  <p className="mt-1 font-semibold">
+                    {statusLabel(invoice.status)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">HT</p>
+                  <p className="mt-1 font-semibold">
+                    {formatMoney(invoice.total_ht)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">TVA</p>
+                  <p className="mt-1 font-semibold">
+                    {formatMoney(invoice.total_tva)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">TTC</p>
+                  <p className="mt-1 font-semibold">
+                    {formatMoney(invoice.total_ttc)}
+                  </p>
+                </div>
+                <div className="flex items-start lg:justify-end">
+                  {invoice.status === "validated" ? (
+                    <span className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+                      Validee
+                    </span>
+                  ) : (
+                    <form action={validateInvoiceAction}>
+                      <input name="period" type="hidden" value={period} />
+                      <input
+                        name="opening_cash"
+                        type="hidden"
+                        value={openingCash}
+                      />
+                      <input name="invoice_id" type="hidden" value={invoice.id} />
+                      <button className="rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white">
+                        Valider
+                      </button>
+                    </form>
+                  )}
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-slate-500">Statut</p>
-                <p className="mt-1 font-semibold">{statusLabel(invoice.status)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">TVA</p>
-                <p className="mt-1 font-semibold">
-                  {formatMoney(invoice.total_tva)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">TTC</p>
-                <p className="mt-1 font-semibold">
-                  {formatMoney(invoice.total_ttc)}
-                </p>
-              </div>
-              <div className="flex items-center lg:justify-end">
-                {invoice.status === "validated" ? (
-                  <span className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
-                    Validee
-                  </span>
-                ) : (
-                  <form action={validateInvoiceAction}>
-                    <input name="period" type="hidden" value={period} />
-                    <input
-                      name="opening_cash"
-                      type="hidden"
-                      value={openingCash}
-                    />
-                    <input name="invoice_id" type="hidden" value={invoice.id} />
-                    <button className="rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white">
-                      Valider
-                    </button>
-                  </form>
-                )}
+              <div className="mt-4 overflow-x-auto rounded-md border border-slate-200">
+                <div className="min-w-[720px]">
+                  <div className="grid grid-cols-[minmax(0,1fr)_90px_90px_110px_110px_110px] bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <span>Ligne</span>
+                    <span>Categorie</span>
+                    <span>TVA</span>
+                    <span>HT</span>
+                    <span>TVA EUR</span>
+                    <span>TTC</span>
+                  </div>
+                  <div className="divide-y divide-slate-200">
+                    {invoice.lines.map((line) => (
+                      <div
+                        className="grid grid-cols-[minmax(0,1fr)_90px_90px_110px_110px_110px] gap-0 px-3 py-3 text-sm"
+                        key={line.id}
+                      >
+                        <div>
+                          <p className="font-medium text-slate-900">
+                            {line.description}
+                          </p>
+                          {line.needs_review_reason ? (
+                            <p className="mt-1 text-xs font-medium text-amber-700">
+                              Revue: {line.needs_review_reason}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className="text-slate-600">
+                          {line.category ?? "-"}
+                        </span>
+                        <span className="text-slate-600">{line.vat_rate}%</span>
+                        <span className="font-medium">
+                          {formatMoney(line.amount_ht)}
+                        </span>
+                        <span className="font-medium">
+                          {formatMoney(line.amount_tva)}
+                        </span>
+                        <span className="font-medium">
+                          {formatMoney(line.amount_ttc)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </article>
           ))
