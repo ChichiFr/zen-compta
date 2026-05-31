@@ -18,10 +18,12 @@ npm run build
 npm audit --audit-level=high
 Pop-Location
 
+Write-Host "Running built-in security scan..."
+.\scripts\security-scan.ps1
+
 if (Get-Command gitleaks -ErrorAction SilentlyContinue) {
     Write-Host "Running gitleaks..."
     gitleaks detect --source . --no-git --redact
 } else {
     Write-Host "Skipping gitleaks: not installed."
 }
-
