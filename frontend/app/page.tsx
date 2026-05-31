@@ -26,6 +26,8 @@ type Metric = {
   help: string;
 };
 
+const INVOICE_FORM_LINE_NUMBERS = [1, 2, 3, 4, 5] as const;
+
 function firstParam(
   params: Record<string, string | string[] | undefined>,
   key: string,
@@ -104,7 +106,7 @@ function redirectToDashboard(
 
 function invoiceLineFromForm(
   formData: FormData,
-  index: 1 | 2,
+  index: number,
 ): InvoiceLineInput | null {
   const description = String(formData.get(`line_${index}_description`) ?? "").trim();
   const amountHt = String(formData.get(`line_${index}_amount_ht`) ?? "").trim();
@@ -143,8 +145,9 @@ async function createInvoiceAction(formData: FormData) {
 
   const period = String(formData.get("period") ?? currentMonth());
   const openingCash = String(formData.get("opening_cash") ?? "0");
-  const lines = [invoiceLineFromForm(formData, 1), invoiceLineFromForm(formData, 2)]
-    .filter((line): line is InvoiceLineInput => line !== null);
+  const lines = INVOICE_FORM_LINE_NUMBERS.map((lineNumber) =>
+    invoiceLineFromForm(formData, lineNumber),
+  ).filter((line): line is InvoiceLineInput => line !== null);
 
   if (lines.length === 0) {
     redirectToDashboard(period, openingCash, "invoice_missing_line");
@@ -272,7 +275,7 @@ function InvoiceForm({
       <div className="border-b border-slate-200 pb-4">
         <h2 className="text-base font-semibold">Nouvelle facture</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Saisie manuelle avec TVA calculee par ligne.
+          Saisie manuelle avec TVA calculee par ligne, jusqu a 5 lignes.
         </p>
       </div>
       <input name="period" type="hidden" value={period} />
@@ -305,7 +308,7 @@ function InvoiceForm({
           />
         </label>
       </div>
-      {[1, 2].map((lineNumber) => (
+      {INVOICE_FORM_LINE_NUMBERS.map((lineNumber) => (
         <div
           className="mt-5 grid gap-4 border-t border-slate-100 pt-5 md:grid-cols-[minmax(0,1fr)_120px_140px_140px]"
           key={lineNumber}
