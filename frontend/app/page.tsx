@@ -10,6 +10,8 @@ import {
   getDashboardSummary,
   getInvoices,
   getMonthlySales,
+  invoiceCsvExportUrl,
+  invoiceXlsxExportUrl,
   saveMonthlySales,
   validateInvoice,
 } from "@/lib/api";
@@ -364,17 +366,35 @@ function InvoiceForm({
 
 function InvoiceList({
   invoices,
+  csvExportUrl,
+  xlsxExportUrl,
   period,
   openingCash,
 }: {
   invoices: Invoice[];
+  csvExportUrl: string;
+  xlsxExportUrl: string;
   period: string;
   openingCash: string;
 }) {
   return (
     <section className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-5 py-4">
+      <div className="flex flex-col justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
         <h2 className="text-base font-semibold">Factures</h2>
+        <div className="flex flex-wrap gap-2">
+          <a
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900"
+            href={csvExportUrl}
+          >
+            Export factures CSV
+          </a>
+          <a
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900"
+            href={xlsxExportUrl}
+          >
+            Export factures Excel
+          </a>
+        </div>
       </div>
       <div className="divide-y divide-slate-200">
         {invoices.length === 0 ? (
@@ -452,6 +472,8 @@ export default async function Home({
   const message = messageText(firstParam(params, "message", ""));
   const csvExportUrl = dashboardCsvExportUrl(periodStart, openingCash);
   const xlsxExportUrl = dashboardXlsxExportUrl(periodStart, openingCash);
+  const invoiceCsvUrl = invoiceCsvExportUrl(periodStart);
+  const invoiceXlsxUrl = invoiceXlsxExportUrl(periodStart);
   const [dashboard, monthlySales, invoices] = await Promise.all([
     getDashboardSummary(periodStart, openingCash),
     getMonthlySales(periodStart),
@@ -615,6 +637,8 @@ export default async function Home({
         <InvoiceForm period={period} openingCash={openingCash} />
         <InvoiceList
           invoices={invoices.data ?? []}
+          csvExportUrl={invoiceCsvUrl}
+          xlsxExportUrl={invoiceXlsxUrl}
           period={period}
           openingCash={openingCash}
         />

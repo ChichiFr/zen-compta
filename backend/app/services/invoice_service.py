@@ -14,6 +14,7 @@ from app.services.invoice_calculations import (
     validation_errors,
 )
 from app.services.periods import month_start, next_month_start
+from app.services.tabular_exports import write_csv, write_xlsx
 
 
 class InvoiceNotFoundError(Exception):
@@ -24,6 +25,24 @@ class InvoiceValidationError(Exception):
     def __init__(self, errors: list[str]) -> None:
         super().__init__(", ".join(errors))
         self.errors = errors
+
+
+INVOICE_EXPORT_HEADERS = [
+    "invoice_date",
+    "supplier_name",
+    "invoice_number",
+    "status",
+    "line_position",
+    "line_description",
+    "category",
+    "vat_rate",
+    "line_ht",
+    "line_tva",
+    "line_ttc",
+    "invoice_total_ht",
+    "invoice_total_tva",
+    "invoice_total_ttc",
+]
 
 
 class InvoiceService:
@@ -96,6 +115,45 @@ class InvoiceService:
             )
         statement = statement.order_by(Invoice.created_at.desc())
         return list(self.db.scalars(statement).all())
+
+    def export_csv(self, period_start: date) -> str:
+        return write_csv(
+            INVOICE_EXPORT_HEADERS,
+            self.export_rows(period_start=period_start),
+        )
+
+    def export_xlsx(self, period_start: date) -> bytes:
+        return write_xlsx(
+            "Invoices",
+            INVOICE_EXPORT_HEADERS,
+            self.export_rows(period_start=period_start),
+        )
+
+    def export_rows(self, period_start: date) -> list[tuple[object, ...]]:
+        rows = []
+        for invoice in self.list_invoices(period_start=period_start):
+            for line in invoice.lines:
+                rows.append(
+                    (
+                        invoice.invoice_date.isoformat()
+                        if invoice.invoice_date
+                        else "",
+                        invoice.supplier_name,
+                        invoice.invoice_number or "",
+                        invoice.status.value,
+                        line.position + 1,
+                        line.description,
+                        line.category or "",
+                        line.vat_rate,
+                        line.amount_ht,
+                        line.amount_tva,
+                        line.amount_ttc,
+                        invoice.total_ht,
+                        invoice.total_tva,
+                        invoice.total_ttc,
+                    )
+                )
+        return rows
 
     def get_invoice(self, invoice_id: uuid.UUID) -> Invoice:
         statement = (

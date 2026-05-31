@@ -1,9 +1,5 @@
-import csv
-from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal
-from io import BytesIO, StringIO
-from zipfile import ZIP_DEFLATED, ZipFile
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -12,6 +8,7 @@ from app.models import Invoice, InvoiceStatus, MonthlySales
 from app.schemas.dashboard import DashboardSummary
 from app.services.invoice_calculations import money
 from app.services.periods import month_start, next_month_start
+from app.services.tabular_exports import write_csv, write_xlsx
 
 
 class DashboardService:
@@ -82,10 +79,17 @@ class DashboardService:
         )
 
     def summary_csv(self, period_start: date, opening_cash: Decimal) -> str:
-        return write_summary_csv(self.summary_rows(period_start, opening_cash))
+        return write_csv(
+            ["metric", "value"],
+            self.summary_rows(period_start, opening_cash),
+        )
 
     def summary_xlsx(self, period_start: date, opening_cash: Decimal) -> bytes:
-        return write_summary_xlsx(self.summary_rows(period_start, opening_cash))
+        return write_xlsx(
+            "Dashboard",
+            ["metric", "value"],
+            self.summary_rows(period_start, opening_cash),
+        )
 
     def summary_rows(
         self, period_start: date, opening_cash: Decimal
@@ -106,87 +110,3 @@ class DashboardService:
             ("invoices_to_review_count", summary.invoices_to_review_count),
             ("cash_is_bank_connected", summary.cash_is_bank_connected),
         ]
-
-
-def write_summary_csv(rows: Iterable[tuple[str, object]]) -> str:
-    output = StringIO()
-    writer = csv.writer(output, lineterminator="\n")
-    writer.writerow(["metric", "value"])
-    for metric, value in rows:
-        writer.writerow([metric, str(value)])
-    return output.getvalue()
-
-
-def write_summary_xlsx(rows: Iterable[tuple[str, object]]) -> bytes:
-    sheet_rows = [("metric", "value"), *rows]
-    cells = []
-    for row_index, row in enumerate(sheet_rows, start=1):
-        cell_values = []
-        for column_index, value in enumerate(row, start=1):
-            cell_ref = f"{chr(64 + column_index)}{row_index}"
-            escaped_value = escape_xml(str(value))
-            cell_values.append(
-                f'<c r="{cell_ref}" t="inlineStr">'
-                f"<is><t>{escaped_value}</t></is></c>"
-            )
-        cells.append(f'<row r="{row_index}">{"".join(cell_values)}</row>')
-
-    worksheet = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-        f"<sheetData>{''.join(cells)}</sheetData>"
-        "</worksheet>"
-    )
-    workbook = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
-        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-        '<sheets><sheet name="Dashboard" sheetId="1" r:id="rId1"/></sheets>'
-        "</workbook>"
-    )
-    workbook_rels = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        '<Relationship Id="rId1" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/'
-        'relationships/worksheet" '
-        'Target="worksheets/sheet1.xml"/></Relationships>'
-    )
-    package_rels = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        '<Relationship Id="rId1" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/'
-        'relationships/officeDocument" '
-        'Target="xl/workbook.xml"/></Relationships>'
-    )
-    content_types = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-'
-        'package.relationships+xml"/>'
-        '<Default Extension="xml" ContentType="application/xml"/>'
-        '<Override PartName="/xl/workbook.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-        '<Override PartName="/xl/worksheets/sheet1.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
-        "</Types>"
-    )
-
-    output = BytesIO()
-    with ZipFile(output, "w", ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", content_types)
-        archive.writestr("_rels/.rels", package_rels)
-        archive.writestr("xl/workbook.xml", workbook)
-        archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
-        archive.writestr("xl/worksheets/sheet1.xml", worksheet)
-    return output.getvalue()
-
-
-def escape_xml(value: str) -> str:
-    return (
-        value.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )

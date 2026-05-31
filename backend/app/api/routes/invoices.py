@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -33,6 +33,42 @@ def list_invoices(
     service: InvoiceService = Depends(get_invoice_service),
 ) -> list[InvoiceRead]:
     return service.list_invoices(period_start=period_start)
+
+
+@router.get("/export.csv", response_class=Response)
+def export_invoices_csv(
+    period_start: date,
+    service: InvoiceService = Depends(get_invoice_service),
+) -> Response:
+    normalized_period = period_start.replace(day=1).isoformat()
+    return Response(
+        content=service.export_csv(period_start=period_start),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="zen-compta-invoices-{normalized_period}.csv"'
+            )
+        },
+    )
+
+
+@router.get("/export.xlsx", response_class=Response)
+def export_invoices_xlsx(
+    period_start: date,
+    service: InvoiceService = Depends(get_invoice_service),
+) -> Response:
+    normalized_period = period_start.replace(day=1).isoformat()
+    return Response(
+        content=service.export_xlsx(period_start=period_start),
+        media_type=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="zen-compta-invoices-{normalized_period}.xlsx"'
+            )
+        },
+    )
 
 
 @router.get("/{invoice_id}", response_model=InvoiceRead)

@@ -73,6 +73,14 @@ export function dashboardXlsxExportUrl(periodStart: string, openingCash: string)
   return dashboardExportUrl("summary.xlsx", periodStart, openingCash);
 }
 
+export function invoiceCsvExportUrl(periodStart: string) {
+  return invoiceExportUrl("export.csv", periodStart);
+}
+
+export function invoiceXlsxExportUrl(periodStart: string) {
+  return invoiceExportUrl("export.xlsx", periodStart);
+}
+
 function dashboardExportUrl(
   path: "summary.csv" | "summary.xlsx",
   periodStart: string,
@@ -83,6 +91,11 @@ function dashboardExportUrl(
     opening_cash: openingCash,
   });
   return `${apiBaseUrl()}/api/dashboard/${path}?${params.toString()}`;
+}
+
+function invoiceExportUrl(path: "export.csv" | "export.xlsx", periodStart: string) {
+  const params = new URLSearchParams({ period_start: periodStart });
+  return `${apiBaseUrl()}/api/invoices/${path}?${params.toString()}`;
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {

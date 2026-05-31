@@ -1,4 +1,7 @@
+import csv
 from collections.abc import Iterator
+from io import BytesIO, StringIO
+from zipfile import ZipFile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -199,3 +202,96 @@ def test_list_invoices_can_filter_by_month(client: TestClient):
     body = response.json()
     assert len(body) == 1
     assert body[0]["supplier_name"] == "May Supplier"
+
+
+def test_invoice_csv_export_contains_monthly_invoice_lines(client: TestClient):
+    client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "May Supplier",
+            "invoice_date": "2026-05-20",
+            "invoice_number": "MAY-1",
+            "lines": [
+                {
+                    "description": "Achats 20",
+                    "category": "601",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                },
+                {
+                    "description": "Achats 5.5",
+                    "category": "601",
+                    "vat_rate": "5.5",
+                    "amount_ht": "50.00",
+                },
+            ],
+        },
+    )
+    client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "June Supplier",
+            "invoice_date": "2026-06-01",
+            "lines": [
+                {
+                    "description": "Achats juin",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    )
+
+    response = client.get(
+        "/api/invoices/export.csv",
+        params={"period_start": "2026-05-01"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="zen-compta-invoices-2026-05-01.csv"'
+    )
+    rows = list(csv.DictReader(StringIO(response.text)))
+    assert len(rows) == 2
+    assert {row["line_description"] for row in rows} == {
+        "Achats 20",
+        "Achats 5.5",
+    }
+    assert {row["supplier_name"] for row in rows} == {"May Supplier"}
+    assert rows[0]["invoice_total_tva"] == "22.75"
+
+
+def test_invoice_xlsx_export_is_a_valid_workbook(client: TestClient):
+    client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "May Supplier",
+            "invoice_date": "2026-05-20",
+            "invoice_number": "MAY-1",
+            "lines": [
+                {
+                    "description": "Achats 20",
+                    "category": "601",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    )
+
+    response = client.get(
+        "/api/invoices/export.xlsx",
+        params={"period_start": "2026-05-01"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    workbook = ZipFile(BytesIO(response.content))
+    assert "[Content_Types].xml" in workbook.namelist()
+    worksheet = workbook.read("xl/worksheets/sheet1.xml").decode()
+    assert "<t>supplier_name</t>" in worksheet
+    assert "<t>May Supplier</t>" in worksheet
+    assert "<t>invoice_total_tva</t>" in worksheet
+    assert "<t>20.00</t>" in worksheet
