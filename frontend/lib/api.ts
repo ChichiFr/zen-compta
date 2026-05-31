@@ -23,6 +23,39 @@ export type MonthlySales = {
   sales_ttc: string;
 };
 
+export type InvoiceStatus = "draft" | "needs_review" | "validated" | "archived";
+
+export type InvoiceLineInput = {
+  description: string;
+  category?: string;
+  vat_rate: string;
+  amount_ht: string;
+};
+
+export type InvoiceLine = {
+  id: string;
+  description: string;
+  category: string | null;
+  vat_rate: string;
+  amount_ht: string;
+  amount_tva: string;
+  amount_ttc: string;
+  needs_review_reason: string | null;
+};
+
+export type Invoice = {
+  id: string;
+  supplier_name: string;
+  invoice_date: string | null;
+  invoice_number: string | null;
+  status: InvoiceStatus;
+  source: "manual" | "ai_upload";
+  total_ht: string;
+  total_tva: string;
+  total_ttc: string;
+  lines: InvoiceLine[];
+};
+
 export type ApiResult<T> =
   | { data: T; error: null }
   | { data: null; error: string };
@@ -99,5 +132,30 @@ export async function saveMonthlySales(
   return fetchJson<MonthlySales>(`/monthly-sales/${periodStart}`, {
     method: "PUT",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getInvoices() {
+  return fetchJson<Invoice[]>("/invoices");
+}
+
+export async function createInvoice(payload: {
+  supplier_name: string;
+  invoice_date?: string;
+  invoice_number?: string;
+  lines: InvoiceLineInput[];
+}) {
+  return fetchJson<Invoice>("/invoices", {
+    method: "POST",
+    body: JSON.stringify({
+      ...payload,
+      source: "manual",
+    }),
+  });
+}
+
+export async function validateInvoice(invoiceId: string) {
+  return fetchJson<Invoice>(`/invoices/${invoiceId}/validate`, {
+    method: "POST",
   });
 }

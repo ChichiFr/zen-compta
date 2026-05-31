@@ -2,11 +2,16 @@ import { redirect } from "next/navigation";
 
 import {
   DashboardSummary,
+  Invoice,
+  InvoiceLineInput,
+  createInvoice,
   dashboardCsvExportUrl,
   dashboardXlsxExportUrl,
   getDashboardSummary,
+  getInvoices,
   getMonthlySales,
   saveMonthlySales,
+  validateInvoice,
 } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +64,18 @@ function messageText(value: string | null) {
   if (value === "saved") {
     return "Ventes mensuelles enregistrees.";
   }
+  if (value === "invoice_created") {
+    return "Facture creee. Elle doit encore etre validee humainement.";
+  }
+  if (value === "invoice_validated") {
+    return "Facture validee.";
+  }
+  if (value === "invoice_validation_failed") {
+    return "La facture ne peut pas encore etre validee.";
+  }
+  if (value === "invoice_missing_line") {
+    return "Ajoute au moins une ligne de facture.";
+  }
   if (value === "invalid_sales") {
     return "Les ventes sont incoherentes: HT + TVA doit egaler TTC.";
   }
@@ -69,6 +86,38 @@ function messageText(value: string | null) {
     return "L API a refuse la demande. Verifie les montants saisis.";
   }
   return null;
+}
+
+function redirectToDashboard(
+  period: string,
+  openingCash: string,
+  message: string,
+): never {
+  redirect(
+    `/?period=${encodeURIComponent(period)}&openingCash=${encodeURIComponent(
+      openingCash,
+    )}&message=${encodeURIComponent(message)}`,
+  );
+}
+
+function invoiceLineFromForm(
+  formData: FormData,
+  index: 1 | 2,
+): InvoiceLineInput | null {
+  const description = String(formData.get(`line_${index}_description`) ?? "").trim();
+  const amountHt = String(formData.get(`line_${index}_amount_ht`) ?? "").trim();
+  if (!description || !amountHt) {
+    return null;
+  }
+
+  const category = String(formData.get(`line_${index}_category`) ?? "").trim();
+  const vatRate = String(formData.get(`line_${index}_vat_rate`) ?? "").trim();
+  return {
+    description,
+    category: category || undefined,
+    vat_rate: vatRate || "20",
+    amount_ht: amountHt,
+  };
 }
 
 async function saveSalesAction(formData: FormData) {
@@ -84,10 +133,47 @@ async function saveSalesAction(formData: FormData) {
   });
 
   const message = result.error ? result.error : "saved";
-  redirect(
-    `/?period=${encodeURIComponent(period)}&openingCash=${encodeURIComponent(
-      openingCash,
-    )}&message=${encodeURIComponent(message)}`,
+  redirectToDashboard(period, openingCash, message);
+}
+
+async function createInvoiceAction(formData: FormData) {
+  "use server";
+
+  const period = String(formData.get("period") ?? currentMonth());
+  const openingCash = String(formData.get("opening_cash") ?? "0");
+  const lines = [invoiceLineFromForm(formData, 1), invoiceLineFromForm(formData, 2)]
+    .filter((line): line is InvoiceLineInput => line !== null);
+
+  if (lines.length === 0) {
+    redirectToDashboard(period, openingCash, "invoice_missing_line");
+  }
+
+  const result = await createInvoice({
+    supplier_name: String(formData.get("supplier_name") ?? "").trim(),
+    invoice_date: String(formData.get("invoice_date") ?? "") || undefined,
+    invoice_number: String(formData.get("invoice_number") ?? "").trim() || undefined,
+    lines,
+  });
+
+  redirectToDashboard(
+    period,
+    openingCash,
+    result.error ? result.error : "invoice_created",
+  );
+}
+
+async function validateInvoiceAction(formData: FormData) {
+  "use server";
+
+  const period = String(formData.get("period") ?? currentMonth());
+  const openingCash = String(formData.get("opening_cash") ?? "0");
+  const invoiceId = String(formData.get("invoice_id") ?? "");
+  const result = await validateInvoice(invoiceId);
+
+  redirectToDashboard(
+    period,
+    openingCash,
+    result.error ? "invoice_validation_failed" : "invoice_validated",
   );
 }
 
@@ -156,6 +242,204 @@ function DetailTable({ summary }: { summary: DashboardSummary }) {
   );
 }
 
+function statusLabel(status: Invoice["status"]) {
+  if (status === "validated") {
+    return "Validee";
+  }
+  if (status === "needs_review") {
+    return "A revoir";
+  }
+  if (status === "archived") {
+    return "Archivee";
+  }
+  return "Brouillon";
+}
+
+function InvoiceForm({
+  period,
+  openingCash,
+}: {
+  period: string;
+  openingCash: string;
+}) {
+  return (
+    <form
+      action={createInvoiceAction}
+      className="rounded-md border border-slate-200 bg-white p-5"
+    >
+      <div className="border-b border-slate-200 pb-4">
+        <h2 className="text-base font-semibold">Nouvelle facture</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Saisie manuelle avec TVA calculee par ligne.
+        </p>
+      </div>
+      <input name="period" type="hidden" value={period} />
+      <input name="opening_cash" type="hidden" value={openingCash} />
+      <div className="mt-5 grid gap-4 md:grid-cols-3">
+        <label className="text-sm font-medium text-slate-600">
+          Fournisseur
+          <input
+            className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
+            name="supplier_name"
+            required
+            type="text"
+          />
+        </label>
+        <label className="text-sm font-medium text-slate-600">
+          Date facture
+          <input
+            className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
+            name="invoice_date"
+            required
+            type="date"
+          />
+        </label>
+        <label className="text-sm font-medium text-slate-600">
+          Numero
+          <input
+            className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
+            name="invoice_number"
+            type="text"
+          />
+        </label>
+      </div>
+      {[1, 2].map((lineNumber) => (
+        <div
+          className="mt-5 grid gap-4 border-t border-slate-100 pt-5 md:grid-cols-[minmax(0,1fr)_120px_140px_140px]"
+          key={lineNumber}
+        >
+          <label className="text-sm font-medium text-slate-600">
+            Ligne {lineNumber}
+            <input
+              className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
+              name={`line_${lineNumber}_description`}
+              placeholder="Achats marchandises"
+              required={lineNumber === 1}
+              type="text"
+            />
+          </label>
+          <label className="text-sm font-medium text-slate-600">
+            Categorie
+            <input
+              className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
+              name={`line_${lineNumber}_category`}
+              placeholder="601"
+              type="text"
+            />
+          </label>
+          <label className="text-sm font-medium text-slate-600">
+            TVA %
+            <input
+              className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
+              defaultValue={lineNumber === 1 ? "20" : ""}
+              max="100"
+              min="0"
+              name={`line_${lineNumber}_vat_rate`}
+              required={lineNumber === 1}
+              step="0.01"
+              type="number"
+            />
+          </label>
+          <label className="text-sm font-medium text-slate-600">
+            Montant HT
+            <input
+              className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
+              min="0"
+              name={`line_${lineNumber}_amount_ht`}
+              required={lineNumber === 1}
+              step="0.01"
+              type="number"
+            />
+          </label>
+        </div>
+      ))}
+      <div className="mt-5 flex justify-end">
+        <button className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+          Creer la facture
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function InvoiceList({
+  invoices,
+  period,
+  openingCash,
+}: {
+  invoices: Invoice[];
+  period: string;
+  openingCash: string;
+}) {
+  return (
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-5 py-4">
+        <h2 className="text-base font-semibold">Factures</h2>
+      </div>
+      <div className="divide-y divide-slate-200">
+        {invoices.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-slate-500">
+            Aucune facture pour le moment.
+          </p>
+        ) : (
+          invoices.slice(0, 8).map((invoice) => (
+            <article
+              className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_140px_140px_140px_auto]"
+              key={invoice.id}
+            >
+              <div>
+                <p className="font-semibold text-slate-950">
+                  {invoice.supplier_name}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {invoice.invoice_date ?? "Date manquante"}
+                  {invoice.invoice_number ? ` - ${invoice.invoice_number}` : ""}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">Statut</p>
+                <p className="mt-1 font-semibold">{statusLabel(invoice.status)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">TVA</p>
+                <p className="mt-1 font-semibold">
+                  {formatMoney(invoice.total_tva)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">TTC</p>
+                <p className="mt-1 font-semibold">
+                  {formatMoney(invoice.total_ttc)}
+                </p>
+              </div>
+              <div className="flex items-center lg:justify-end">
+                {invoice.status === "validated" ? (
+                  <span className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+                    Validee
+                  </span>
+                ) : (
+                  <form action={validateInvoiceAction}>
+                    <input name="period" type="hidden" value={period} />
+                    <input
+                      name="opening_cash"
+                      type="hidden"
+                      value={openingCash}
+                    />
+                    <input name="invoice_id" type="hidden" value={invoice.id} />
+                    <button className="rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white">
+                      Valider
+                    </button>
+                  </form>
+                )}
+              </div>
+            </article>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default async function Home({
   searchParams,
 }: {
@@ -168,9 +452,10 @@ export default async function Home({
   const message = messageText(firstParam(params, "message", ""));
   const csvExportUrl = dashboardCsvExportUrl(periodStart, openingCash);
   const xlsxExportUrl = dashboardXlsxExportUrl(periodStart, openingCash);
-  const [dashboard, monthlySales] = await Promise.all([
+  const [dashboard, monthlySales, invoices] = await Promise.all([
     getDashboardSummary(periodStart, openingCash),
     getMonthlySales(periodStart),
+    getInvoices(),
   ]);
 
   return (
@@ -326,6 +611,13 @@ export default async function Home({
             </dl>
           </aside>
         </section>
+
+        <InvoiceForm period={period} openingCash={openingCash} />
+        <InvoiceList
+          invoices={invoices.data ?? []}
+          period={period}
+          openingCash={openingCash}
+        />
       </section>
     </main>
   );
