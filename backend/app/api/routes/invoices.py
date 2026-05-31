@@ -1,6 +1,7 @@
 import uuid
+from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -28,9 +29,10 @@ def create_invoice(
 
 @router.get("", response_model=list[InvoiceRead])
 def list_invoices(
+    period_start: date | None = Query(default=None),
     service: InvoiceService = Depends(get_invoice_service),
 ) -> list[InvoiceRead]:
-    return service.list_invoices()
+    return service.list_invoices(period_start=period_start)
 
 
 @router.get("/{invoice_id}", response_model=InvoiceRead)

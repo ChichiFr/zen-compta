@@ -455,7 +455,7 @@ export default async function Home({
   const [dashboard, monthlySales, invoices] = await Promise.all([
     getDashboardSummary(periodStart, openingCash),
     getMonthlySales(periodStart),
-    getInvoices(),
+    getInvoices(periodStart),
   ]);
 
   return (

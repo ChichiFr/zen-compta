@@ -135,8 +135,12 @@ export async function saveMonthlySales(
   });
 }
 
-export async function getInvoices() {
-  return fetchJson<Invoice[]>("/invoices");
+export async function getInvoices(periodStart?: string) {
+  if (!periodStart) {
+    return fetchJson<Invoice[]>("/invoices");
+  }
+  const params = new URLSearchParams({ period_start: periodStart });
+  return fetchJson<Invoice[]>(`/invoices?${params.toString()}`);
 }
 
 export async function createInvoice(payload: {

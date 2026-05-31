@@ -162,3 +162,40 @@ def test_list_invoices_returns_created_invoices(client: TestClient):
     assert len(response.json()) == 1
     assert response.json()[0]["supplier_name"] == "Metro"
 
+
+def test_list_invoices_can_filter_by_month(client: TestClient):
+    client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "May Supplier",
+            "invoice_date": "2026-05-20",
+            "lines": [
+                {
+                    "description": "Achats mai",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    )
+    client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "June Supplier",
+            "invoice_date": "2026-06-01",
+            "lines": [
+                {
+                    "description": "Achats juin",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    )
+
+    response = client.get("/api/invoices", params={"period_start": "2026-05-01"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["supplier_name"] == "May Supplier"

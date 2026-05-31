@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -12,6 +13,7 @@ from app.services.invoice_calculations import (
     calculate_totals,
     validation_errors,
 )
+from app.services.periods import month_start, next_month_start
 
 
 class InvoiceNotFoundError(Exception):
@@ -79,13 +81,20 @@ class InvoiceService:
         self.db.commit()
         return self.get_invoice(invoice.id)
 
-    def list_invoices(self) -> list[Invoice]:
+    def list_invoices(self, period_start: date | None = None) -> list[Invoice]:
         statement = (
             select(Invoice)
             .options(selectinload(Invoice.lines))
             .where(Invoice.status != InvoiceStatus.ARCHIVED)
-            .order_by(Invoice.created_at.desc())
         )
+        if period_start is not None:
+            start = month_start(period_start)
+            end = next_month_start(start)
+            statement = statement.where(
+                Invoice.invoice_date >= start,
+                Invoice.invoice_date < end,
+            )
+        statement = statement.order_by(Invoice.created_at.desc())
         return list(self.db.scalars(statement).all())
 
     def get_invoice(self, invoice_id: uuid.UUID) -> Invoice:
@@ -127,4 +136,3 @@ class InvoiceService:
         invoice.status = InvoiceStatus.VALIDATED
         self.db.commit()
         return self.get_invoice(invoice.id)
-
