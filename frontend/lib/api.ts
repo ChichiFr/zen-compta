@@ -32,6 +32,26 @@ function apiBaseUrl() {
   return baseUrl.replace(/\/$/, "");
 }
 
+export function dashboardCsvExportUrl(periodStart: string, openingCash: string) {
+  return dashboardExportUrl("summary.csv", periodStart, openingCash);
+}
+
+export function dashboardXlsxExportUrl(periodStart: string, openingCash: string) {
+  return dashboardExportUrl("summary.xlsx", periodStart, openingCash);
+}
+
+function dashboardExportUrl(
+  path: "summary.csv" | "summary.xlsx",
+  periodStart: string,
+  openingCash: string,
+) {
+  const params = new URLSearchParams({
+    period_start: periodStart,
+    opening_cash: openingCash,
+  });
+  return `${apiBaseUrl()}/api/dashboard/${path}?${params.toString()}`;
+}
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   try {
     const response = await fetch(`${apiBaseUrl()}/api${path}`, {

@@ -1,4 +1,7 @@
+import csv
 from collections.abc import Iterator
+from io import BytesIO, StringIO
+from zipfile import ZipFile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -155,3 +158,80 @@ def test_dashboard_summary_uses_validated_invoices_for_vat_and_cash(
     assert body["sales_ttc"] == "1200.00"
     assert body["estimated_cash"] == "1400.00"
     assert body["cash_is_bank_connected"] is False
+
+
+def test_dashboard_summary_csv_export_matches_monthly_summary(client: TestClient):
+    validated_invoice = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-05-05",
+            "lines": [
+                {
+                    "description": "Achats marchandises",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{validated_invoice['id']}/validate")
+    client.put(
+        "/api/monthly-sales/2026-05-01",
+        json={
+            "sales_ht": "1000.00",
+            "vat_collected": "200.00",
+            "sales_ttc": "1200.00",
+        },
+    )
+
+    response = client.get(
+        "/api/dashboard/summary.csv",
+        params={"period_start": "2026-05-20", "opening_cash": "500.00"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/csv; charset=utf-8"
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="zen-compta-dashboard-2026-05-01.csv"'
+    )
+    rows = list(csv.DictReader(StringIO(response.text)))
+    body = {row["metric"]: row["value"] for row in rows}
+    assert body["period_start"] == "2026-05-01"
+    assert body["sales_ht"] == "1000.00"
+    assert body["vat_collected"] == "200.00"
+    assert body["sales_ttc"] == "1200.00"
+    assert body["vat_deductible"] == "20.00"
+    assert body["vat_payable_estimate"] == "180.00"
+    assert body["estimated_cash"] == "1400.00"
+
+
+def test_dashboard_summary_xlsx_export_is_a_valid_workbook(client: TestClient):
+    client.put(
+        "/api/monthly-sales/2026-05-01",
+        json={
+            "sales_ht": "1000.00",
+            "vat_collected": "200.00",
+            "sales_ttc": "1200.00",
+        },
+    )
+
+    response = client.get(
+        "/api/dashboard/summary.xlsx",
+        params={"period_start": "2026-05-20", "opening_cash": "500.00"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="zen-compta-dashboard-2026-05-01.xlsx"'
+    )
+    workbook = ZipFile(BytesIO(response.content))
+    assert "[Content_Types].xml" in workbook.namelist()
+    worksheet = workbook.read("xl/worksheets/sheet1.xml").decode()
+    assert "<t>period_start</t>" in worksheet
+    assert "<t>2026-05-01</t>" in worksheet
+    assert "<t>vat_collected</t>" in worksheet
+    assert "<t>200.00</t>" in worksheet

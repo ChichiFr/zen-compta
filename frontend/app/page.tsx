@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 
 import {
   DashboardSummary,
+  dashboardCsvExportUrl,
+  dashboardXlsxExportUrl,
   getDashboardSummary,
   getMonthlySales,
   saveMonthlySales,
@@ -164,6 +166,8 @@ export default async function Home({
   const openingCash = firstParam(params, "openingCash", "0");
   const periodStart = monthToDate(period);
   const message = messageText(firstParam(params, "message", ""));
+  const csvExportUrl = dashboardCsvExportUrl(periodStart, openingCash);
+  const xlsxExportUrl = dashboardXlsxExportUrl(periodStart, openingCash);
   const [dashboard, monthlySales] = await Promise.all([
     getDashboardSummary(periodStart, openingCash),
     getMonthlySales(periodStart),
@@ -216,6 +220,20 @@ export default async function Home({
 
         {dashboard.data ? (
           <>
+            <div className="flex flex-wrap justify-end gap-2">
+              <a
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm"
+                href={csvExportUrl}
+              >
+                Exporter CSV
+              </a>
+              <a
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm"
+                href={xlsxExportUrl}
+              >
+                Exporter Excel
+              </a>
+            </div>
             <DashboardMetrics summary={dashboard.data} />
             <DetailTable summary={dashboard.data} />
           </>
