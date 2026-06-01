@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Invoice, InvoiceLine, InvoiceStatus
-from app.schemas.invoice import InvoiceCreate
+from app.schemas.invoice import InvoiceCreate, InvoiceUpdate
 from app.services.invoice_calculations import (
     InvoiceLineDraft,
     InvoiceValidationInput,
@@ -25,6 +25,10 @@ class InvoiceValidationError(Exception):
     def __init__(self, errors: list[str]) -> None:
         super().__init__(", ".join(errors))
         self.errors = errors
+
+
+class InvoiceLockedError(Exception):
+    pass
 
 
 INVOICE_EXPORT_HEADERS = [
@@ -50,6 +54,22 @@ class InvoiceService:
         self.db = db
 
     def create_invoice(self, payload: InvoiceCreate) -> Invoice:
+        return self._save_invoice(payload)
+
+    def update_invoice(self, invoice_id: uuid.UUID, payload: InvoiceUpdate) -> Invoice:
+        invoice = self.get_invoice(invoice_id)
+        if invoice.status == InvoiceStatus.VALIDATED:
+            raise InvoiceLockedError("validated_invoice_cannot_be_edited")
+        if invoice.status == InvoiceStatus.ARCHIVED:
+            raise InvoiceLockedError("archived_invoice_cannot_be_edited")
+
+        return self._save_invoice(payload, invoice=invoice)
+
+    def _save_invoice(
+        self,
+        payload: InvoiceCreate | InvoiceUpdate,
+        invoice: Invoice | None = None,
+    ) -> Invoice:
         calculated_lines = [
             calculate_line(
                 InvoiceLineDraft(
@@ -70,16 +90,19 @@ class InvoiceService:
             else InvoiceStatus.DRAFT
         )
 
-        invoice = Invoice(
-            supplier_name=payload.supplier_name.strip(),
-            invoice_date=payload.invoice_date,
-            invoice_number=payload.invoice_number,
-            source=payload.source,
-            status=status,
-            total_ht=totals.total_ht,
-            total_tva=totals.total_tva,
-            total_ttc=totals.total_ttc,
-        )
+        if invoice is None:
+            invoice = Invoice()
+            self.db.add(invoice)
+            if isinstance(payload, InvoiceCreate):
+                invoice.source = payload.source
+
+        invoice.supplier_name = payload.supplier_name.strip()
+        invoice.invoice_date = payload.invoice_date
+        invoice.invoice_number = payload.invoice_number
+        invoice.status = status
+        invoice.total_ht = totals.total_ht
+        invoice.total_tva = totals.total_tva
+        invoice.total_ttc = totals.total_ttc
 
         invoice.lines = [
             InvoiceLine(
@@ -96,7 +119,6 @@ class InvoiceService:
             for index, line in enumerate(calculated_lines)
         ]
 
-        self.db.add(invoice)
         self.db.commit()
         return self.get_invoice(invoice.id)
 
@@ -168,6 +190,9 @@ class InvoiceService:
 
     def validate_invoice(self, invoice_id: uuid.UUID) -> Invoice:
         invoice = self.get_invoice(invoice_id)
+        if invoice.status == InvoiceStatus.ARCHIVED:
+            raise InvoiceValidationError(["archived_invoice_cannot_be_validated"])
+
         errors = validation_errors(
             InvoiceValidationInput(
                 supplier_name=invoice.supplier_name,
@@ -192,5 +217,14 @@ class InvoiceService:
             raise InvoiceValidationError(errors)
 
         invoice.status = InvoiceStatus.VALIDATED
+        self.db.commit()
+        return self.get_invoice(invoice.id)
+
+    def archive_invoice(self, invoice_id: uuid.UUID) -> Invoice:
+        invoice = self.get_invoice(invoice_id)
+        if invoice.status == InvoiceStatus.VALIDATED:
+            raise InvoiceLockedError("validated_invoice_cannot_be_archived")
+
+        invoice.status = InvoiceStatus.ARCHIVED
         self.db.commit()
         return self.get_invoice(invoice.id)

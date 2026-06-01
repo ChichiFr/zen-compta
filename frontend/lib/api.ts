@@ -171,8 +171,29 @@ export async function createInvoice(payload: {
   });
 }
 
+export async function updateInvoice(
+  invoiceId: string,
+  payload: {
+    supplier_name: string;
+    invoice_date?: string;
+    invoice_number?: string;
+    lines: InvoiceLineInput[];
+  },
+) {
+  return fetchJson<Invoice>(`/invoices/${invoiceId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function validateInvoice(invoiceId: string) {
   return fetchJson<Invoice>(`/invoices/${invoiceId}/validate`, {
+    method: "POST",
+  });
+}
+
+export async function archiveInvoice(invoiceId: string) {
+  return fetchJson<Invoice>(`/invoices/${invoiceId}/archive`, {
     method: "POST",
   });
 }

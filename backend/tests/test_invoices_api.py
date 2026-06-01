@@ -122,6 +122,92 @@ def test_validate_invoice_changes_status_when_complete(client: TestClient):
     assert response.json()["status"] == "validated"
 
 
+def test_update_invoice_before_validation_recalculates_totals(client: TestClient):
+    created = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-05-01",
+            "lines": [
+                {
+                    "description": "Achats",
+                    "vat_rate": "10",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    ).json()
+
+    response = client.put(
+        f"/api/invoices/{created['id']}",
+        json={
+            "supplier_name": "Metro corrige",
+            "invoice_date": "2026-05-02",
+            "invoice_number": "M-002",
+            "lines": [
+                {
+                    "description": "Achats corriges",
+                    "category": "601",
+                    "vat_rate": "20",
+                    "amount_ht": "50.00",
+                },
+                {
+                    "description": "Frais",
+                    "category": "625",
+                    "vat_rate": "10",
+                    "amount_ht": "30.00",
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["supplier_name"] == "Metro corrige"
+    assert body["invoice_date"] == "2026-05-02"
+    assert body["invoice_number"] == "M-002"
+    assert body["total_ht"] == "80.00"
+    assert body["total_tva"] == "13.00"
+    assert body["total_ttc"] == "93.00"
+    assert len(body["lines"]) == 2
+
+
+def test_update_invoice_after_validation_is_rejected(client: TestClient):
+    created = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-05-01",
+            "lines": [
+                {
+                    "description": "Achats",
+                    "vat_rate": "10",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{created['id']}/validate")
+
+    response = client.put(
+        f"/api/invoices/{created['id']}",
+        json={
+            "supplier_name": "Metro corrige",
+            "invoice_date": "2026-05-02",
+            "lines": [
+                {
+                    "description": "Achats",
+                    "vat_rate": "10",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "validated_invoice_cannot_be_edited"
+
+
 def test_validate_invoice_returns_errors_when_incomplete(client: TestClient):
     created = client.post(
         "/api/invoices",
@@ -141,6 +227,57 @@ def test_validate_invoice_returns_errors_when_incomplete(client: TestClient):
 
     assert response.status_code == 422
     assert response.json()["detail"] == {"errors": ["invoice_date_required"]}
+
+
+def test_archive_invoice_hides_it_from_list(client: TestClient):
+    created = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-05-01",
+            "lines": [
+                {
+                    "description": "Achats",
+                    "vat_rate": "10",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    ).json()
+
+    archive_response = client.post(f"/api/invoices/{created['id']}/archive")
+    list_response = client.get("/api/invoices")
+    get_response = client.get(f"/api/invoices/{created['id']}")
+
+    assert archive_response.status_code == 200
+    assert archive_response.json()["status"] == "archived"
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+    assert get_response.status_code == 200
+    assert get_response.json()["status"] == "archived"
+
+
+def test_archive_validated_invoice_is_rejected(client: TestClient):
+    created = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-05-01",
+            "lines": [
+                {
+                    "description": "Achats",
+                    "vat_rate": "10",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{created['id']}/validate")
+
+    response = client.post(f"/api/invoices/{created['id']}/archive")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "validated_invoice_cannot_be_archived"
 
 
 def test_list_invoices_returns_created_invoices(client: TestClient):

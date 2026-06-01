@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.invoice import InvoiceCreate, InvoiceRead
+from app.schemas.invoice import InvoiceCreate, InvoiceRead, InvoiceUpdate
 from app.services.invoice_service import (
+    InvoiceLockedError,
     InvoiceNotFoundError,
     InvoiceService,
     InvoiceValidationError,
@@ -82,6 +83,20 @@ def get_invoice(
         raise HTTPException(status_code=404, detail="invoice_not_found") from exc
 
 
+@router.put("/{invoice_id}", response_model=InvoiceRead)
+def update_invoice(
+    invoice_id: uuid.UUID,
+    payload: InvoiceUpdate,
+    service: InvoiceService = Depends(get_invoice_service),
+) -> InvoiceRead:
+    try:
+        return service.update_invoice(invoice_id, payload)
+    except InvoiceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="invoice_not_found") from exc
+    except InvoiceLockedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @router.post("/{invoice_id}/validate", response_model=InvoiceRead)
 def validate_invoice(
     invoice_id: uuid.UUID,
@@ -96,3 +111,16 @@ def validate_invoice(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"errors": exc.errors},
         ) from exc
+
+
+@router.post("/{invoice_id}/archive", response_model=InvoiceRead)
+def archive_invoice(
+    invoice_id: uuid.UUID,
+    service: InvoiceService = Depends(get_invoice_service),
+) -> InvoiceRead:
+    try:
+        return service.archive_invoice(invoice_id)
+    except InvoiceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="invoice_not_found") from exc
+    except InvoiceLockedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

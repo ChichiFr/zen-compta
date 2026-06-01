@@ -39,6 +39,13 @@ class InvoiceCreate(BaseModel):
     lines: list[InvoiceLineInput] = Field(default_factory=list)
 
 
+class InvoiceUpdate(BaseModel):
+    supplier_name: str = Field(min_length=1, max_length=255)
+    invoice_date: date | None = None
+    invoice_number: str | None = Field(default=None, max_length=100)
+    lines: list[InvoiceLineInput] = Field(default_factory=list)
+
+
 class InvoiceRead(BaseModel):
     id: UUID
     supplier_name: str
