@@ -86,7 +86,29 @@ http://localhost:3000
 .\scripts\check.ps1
 ```
 
+This runs backend tests, Python linting, frontend linting, frontend build,
+`npm audit --audit-level=high`, the built-in security scan, and `gitleaks` when
+it is installed.
+
+### Pre-Push Hook
+
+Install the local Git pre-push hook once per machine:
+
+```powershell
+.\scripts\install-git-hooks.ps1
+```
+
+After installation, `git push` runs:
+
+```powershell
+.\scripts\check.ps1
+```
+
+If tests, build, linting, audit, or security checks fail, the push is blocked.
+
 ## Local Status
 
-The repo contains the initial Next.js/FastAPI/PostgreSQL scaffold. No production
-code has been migrated from the old repository.
+The repo contains the MVP foundation: monthly sales, manual invoices with
+multi-rate VAT, human validation, edit/archive actions before validation,
+dashboard VAT/treasury estimates, CSV/XLSX exports, and local validation
+scripts. No production code has been migrated from the old repository.
