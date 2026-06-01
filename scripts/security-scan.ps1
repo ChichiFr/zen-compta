@@ -28,6 +28,18 @@ function Test-TextFile {
     return $extension -notin $binaryExtensions
 }
 
+function Test-AllowlistedSecretLine {
+    param([string]$Line)
+    return (
+        $Line -match "local-check-" -or
+        $Line -match "test-token" -or
+        $Line -match "change-me" -or
+        $Line -match "same-value-as-" -or
+        $Line -match "your-shared-login-password" -or
+        $Line -match "a-long-random-local-secret"
+    )
+}
+
 Push-Location $Root
 try {
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
@@ -83,6 +95,9 @@ try {
         $lineNumber = 0
         foreach ($line in Get-Content -LiteralPath $path) {
             $lineNumber += 1
+            if (Test-AllowlistedSecretLine $line) {
+                continue
+            }
             foreach ($secretPattern in $secretPatterns) {
                 if ($line -match $secretPattern.Pattern) {
                     $findings += "${path}:$lineNumber $($secretPattern.Name)"

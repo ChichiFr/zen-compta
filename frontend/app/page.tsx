@@ -17,6 +17,7 @@ import {
   updateInvoice,
   validateInvoice,
 } from "@/lib/api";
+import { clearSession, requireAuth } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -231,6 +232,13 @@ async function archiveInvoiceAction(formData: FormData) {
     openingCash,
     result.error ? result.error : "invoice_archived",
   );
+}
+
+async function logoutAction() {
+  "use server";
+
+  await clearSession();
+  redirect("/login");
 }
 
 function MetricCard({ label, value, help }: Metric) {
@@ -707,6 +715,8 @@ export default async function Home({
 }: {
   searchParams: SearchParams;
 }) {
+  await requireAuth();
+
   const params = await searchParams;
   const period = firstParam(params, "period", currentMonth());
   const openingCash = firstParam(params, "openingCash", "0");
@@ -734,31 +744,38 @@ export default async function Home({
               Dashboard TVA et tresorerie
             </h1>
           </div>
-          <form className="flex flex-col gap-3 sm:flex-row" method="get">
-            <label className="text-sm font-medium text-slate-600">
-              Mois
-              <input
-                className="mt-1 block h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-950"
-                defaultValue={period}
-                name="period"
-                type="month"
-              />
-            </label>
-            <label className="text-sm font-medium text-slate-600">
-              Tresorerie depart
-              <input
-                className="mt-1 block h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-950"
-                defaultValue={openingCash}
-                min="0"
-                name="openingCash"
-                step="0.01"
-                type="number"
-              />
-            </label>
-            <button className="h-10 self-end rounded-md bg-slate-950 px-4 text-sm font-semibold text-white">
-              Actualiser
-            </button>
-          </form>
+          <div className="flex flex-col gap-3">
+            <form className="flex flex-col gap-3 sm:flex-row" method="get">
+              <label className="text-sm font-medium text-slate-600">
+                Mois
+                <input
+                  className="mt-1 block h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-950"
+                  defaultValue={period}
+                  name="period"
+                  type="month"
+                />
+              </label>
+              <label className="text-sm font-medium text-slate-600">
+                Tresorerie depart
+                <input
+                  className="mt-1 block h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-950"
+                  defaultValue={openingCash}
+                  min="0"
+                  name="openingCash"
+                  step="0.01"
+                  type="number"
+                />
+              </label>
+              <button className="h-10 self-end rounded-md bg-slate-950 px-4 text-sm font-semibold text-white">
+                Actualiser
+              </button>
+            </form>
+            <form action={logoutAction} className="flex justify-end">
+              <button className="text-sm font-semibold text-slate-600 underline-offset-4 hover:underline">
+                Deconnexion
+              </button>
+            </form>
+          </div>
         </header>
 
         {message ? (

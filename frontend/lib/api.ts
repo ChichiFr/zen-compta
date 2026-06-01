@@ -1,3 +1,5 @@
+import { internalApiToken } from "@/lib/session";
+
 export type DashboardSummary = {
   period_start: string;
   invoices_to_review_count: number;
@@ -90,12 +92,12 @@ function dashboardExportUrl(
     period_start: periodStart,
     opening_cash: openingCash,
   });
-  return `${apiBaseUrl()}/api/dashboard/${path}?${params.toString()}`;
+  return `/exports/dashboard/${path}?${params.toString()}`;
 }
 
 function invoiceExportUrl(path: "export.csv" | "export.xlsx", periodStart: string) {
   const params = new URLSearchParams({ period_start: periodStart });
-  return `${apiBaseUrl()}/api/invoices/${path}?${params.toString()}`;
+  return `/exports/invoices/${path}?${params.toString()}`;
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
@@ -105,6 +107,7 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-API-Token": internalApiToken(),
         ...init?.headers,
       },
     });

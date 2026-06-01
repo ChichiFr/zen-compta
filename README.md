@@ -80,6 +80,21 @@ Frontend:
 http://localhost:3000
 ```
 
+The app is protected by a shared password for internal use. Set these values in
+`frontend/.env.local`:
+
+```powershell
+INTERNAL_API_TOKEN=same-value-as-backend
+ZEN_COMPTA_APP_PASSWORD=your-shared-login-password
+ZEN_COMPTA_SESSION_SECRET=a-long-random-local-secret
+```
+
+The backend also needs the matching token in `.env`:
+
+```powershell
+INTERNAL_API_TOKEN=same-value-as-frontend
+```
+
 ### Checks
 
 ```powershell

@@ -13,6 +13,15 @@ Pop-Location
 
 Write-Host "Checking frontend..."
 Push-Location frontend
+if (-not $env:INTERNAL_API_TOKEN) {
+    $env:INTERNAL_API_TOKEN = "local-check-token"
+}
+if (-not $env:ZEN_COMPTA_APP_PASSWORD) {
+    $env:ZEN_COMPTA_APP_PASSWORD = "local-check-password"
+}
+if (-not $env:ZEN_COMPTA_SESSION_SECRET) {
+    $env:ZEN_COMPTA_SESSION_SECRET = "local-check-session-secret"
+}
 npm run lint
 npm run build
 npm audit --audit-level=high

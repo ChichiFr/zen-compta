@@ -8,6 +8,7 @@ class Settings(BaseSettings):
         "postgresql+psycopg://postgres:postgres@localhost:5432/zen_compta"
     )
     environment: str = "local"
+    internal_api_token: str | None = None
 
     model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
 
