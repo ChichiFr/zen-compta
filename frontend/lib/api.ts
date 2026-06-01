@@ -92,12 +92,12 @@ function dashboardExportUrl(
     period_start: periodStart,
     opening_cash: openingCash,
   });
-  return `/exports/dashboard/${path}?${params.toString()}`;
+  return `/downloads/dashboard/${path}?${params.toString()}`;
 }
 
 function invoiceExportUrl(path: "export.csv" | "export.xlsx", periodStart: string) {
   const params = new URLSearchParams({ period_start: periodStart });
-  return `/exports/invoices/${path}?${params.toString()}`;
+  return `/downloads/invoice-files/${path}?${params.toString()}`;
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
