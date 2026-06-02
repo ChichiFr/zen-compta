@@ -5,6 +5,17 @@
 - No real secrets in Git.
 - Rotate any secret that was used in or near the legacy project before V2 production.
 - Use environment variables or a managed secret store.
+- The frontend requires `ZEN_COMPTA_APP_PASSWORD` before users can access the
+  dashboard.
+- The frontend sends `INTERNAL_API_TOKEN` server-side to FastAPI. Browser users
+  should never see this token.
+- `scripts/check.ps1` runs `scripts/security-scan.ps1`, which blocks common
+  API keys, private keys, non-empty secret assignments, local databases, and
+  uploaded/generated business files that are visible to Git.
+- `scripts/install-git-hooks.ps1` configures Git to run `scripts/check.ps1`
+  before every push through `.githooks/pre-push`.
+- `gitleaks` is still recommended when installed, but the built-in scan gives
+  a baseline even on machines without extra security tools.
 
 ## Data
 
@@ -20,4 +31,3 @@
 - Explicit allowed hosts/origins.
 - Least-privilege database user.
 - Audit trail for accounting-sensitive mutations.
-

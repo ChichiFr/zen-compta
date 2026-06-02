@@ -1,0 +1,2 @@
+"""Zen Compta backend package."""
+

@@ -127,6 +127,28 @@ If tests, build, lint, or critical security checks fail:
 - Do not push code with known secrets, failing critical tests, or failing
   critical security checks.
 
+## Required End-Of-Task Agent Review
+
+Before considering a coding task finished, run an independent review when the
+environment provides agent/sub-agent tools.
+
+Minimum review expectations:
+
+- Ask one agent to review backend, accounting, API, database, and security
+  risks when those areas were touched.
+- Ask one agent to review frontend, UX, forms, runtime behavior, and
+  maintainability when those areas were touched.
+- Ask a targeted security/data review agent before any push that changes auth,
+  exports, file handling, environment variables, secrets, or pre-push checks.
+- Treat agent findings like code review feedback: fix confirmed bugs and
+  security issues before pushing.
+- If an agent finding is intentionally not fixed, document why in the final
+  report.
+- If agent tools are not available, say so explicitly and rely on local tests,
+  lint, build, and security checks instead.
+
+Do not claim that an agent review happened unless it actually happened.
+
 ## Branching And Commits
 
 - Do not work directly on `main` for new features.
@@ -144,4 +166,3 @@ When reporting work:
 - Say what checks were run.
 - Say what checks were skipped and why.
 - Call out security or accounting risks clearly.
-

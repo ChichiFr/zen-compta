@@ -21,17 +21,109 @@ bank connections.
 - Tests are required for accounting calculations and critical workflows.
 - The old project is a reference prototype only.
 
-## Proposed Stack
+## Stack
 
-The final stack is still open, but the current preferred direction is:
+The current V2 direction is:
 
-- Backend: FastAPI or Django, to be decided before implementation.
+- Frontend: Next.js, React, TypeScript, Tailwind CSS.
+- Backend: FastAPI, Python, Pydantic.
 - Database: PostgreSQL.
-- Frontend: Next.js if using a separate API backend, or Django templates/HTMX if using Django.
-- Background jobs: Redis-backed worker for document extraction and bank sync.
+- Migrations: Alembic.
+- Background jobs: Redis-backed worker later, when needed.
 - File storage: S3-compatible bucket or equivalent managed object storage.
+
+## Local Development
+
+### Requirements
+
+- Node.js 24+
+- npm 11+
+- Python 3.11+
+- Docker
+
+### Start PostgreSQL
+
+```powershell
+docker compose up -d postgres
+```
+
+### Backend
+
+```powershell
+Copy-Item .env.example .env
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements-dev.txt
+uvicorn app.main:app --reload
+```
+
+Health check:
+
+```text
+http://localhost:8000/api/health
+```
+
+### Frontend
+
+```powershell
+cd frontend
+Copy-Item .env.example .env.local
+npm install
+npm run dev
+```
+
+Frontend:
+
+```text
+http://localhost:3000
+```
+
+The app is protected by a shared password for internal use. Set these values in
+`frontend/.env.local`:
+
+```powershell
+INTERNAL_API_TOKEN=same-value-as-backend
+ZEN_COMPTA_APP_PASSWORD=your-shared-login-password
+ZEN_COMPTA_SESSION_SECRET=a-long-random-local-secret
+```
+
+The backend also needs the matching token in `.env`:
+
+```powershell
+INTERNAL_API_TOKEN=same-value-as-frontend
+```
+
+### Checks
+
+```powershell
+.\scripts\check.ps1
+```
+
+This runs backend tests, Python linting, frontend linting, frontend build,
+`npm audit --audit-level=high`, the built-in security scan, and `gitleaks` when
+it is installed.
+
+### Pre-Push Hook
+
+Install the local Git pre-push hook once per machine:
+
+```powershell
+.\scripts\install-git-hooks.ps1
+```
+
+After installation, `git push` runs:
+
+```powershell
+.\scripts\check.ps1
+```
+
+If tests, build, linting, audit, or security checks fail, the push is blocked.
 
 ## Local Status
 
-This repo currently contains planning and project guardrails only. No production
-code has been migrated from the old repository.
+The repo contains the MVP foundation: monthly sales, manual invoices with
+multi-rate VAT, human validation, edit/archive actions before validation,
+dashboard VAT/treasury estimates, CSV/XLSX exports, and local validation
+scripts. No production code has been migrated from the old repository.
