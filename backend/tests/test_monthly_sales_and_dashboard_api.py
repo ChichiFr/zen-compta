@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
@@ -36,9 +37,14 @@ def client() -> Iterator[TestClient]:
 
     app = create_app()
     app.dependency_overrides[get_db] = override_get_db
+    original_token = settings.internal_api_token
+    settings.internal_api_token = "test-token"
+    test_client = TestClient(app)
+    test_client.headers.update({"X-Internal-API-Token": "test-token"})
     try:
-        yield TestClient(app)
+        yield test_client
     finally:
+        settings.internal_api_token = original_token
         app.dependency_overrides.clear()
         Base.metadata.drop_all(bind=engine)
 

@@ -1,5 +1,6 @@
 import csv
 from collections.abc import Iterable, Sequence
+from decimal import Decimal
 from io import BytesIO, StringIO
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -9,7 +10,7 @@ def write_csv(headers: Sequence[str], rows: Iterable[Sequence[object]]) -> str:
     writer = csv.writer(output, lineterminator="\n")
     writer.writerow(headers)
     for row in rows:
-        writer.writerow([str(value) for value in row])
+        writer.writerow([spreadsheet_safe_value(value) for value in row])
     return output.getvalue()
 
 
@@ -24,7 +25,7 @@ def write_xlsx(
         cell_values = []
         for column_index, value in enumerate(row, start=1):
             cell_ref = f"{column_name(column_index)}{row_index}"
-            escaped_value = escape_xml(str(value))
+            escaped_value = escape_xml(spreadsheet_safe_value(value))
             cell_values.append(
                 f'<c r="{cell_ref}" t="inlineStr">'
                 f"<is><t>{escaped_value}</t></is></c>"
@@ -81,6 +82,16 @@ def write_xlsx(
         archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
         archive.writestr("xl/worksheets/sheet1.xml", worksheet)
     return output.getvalue()
+
+
+def spreadsheet_safe_value(value: object) -> str:
+    rendered = str(value)
+    if isinstance(value, int | float | Decimal):
+        return rendered
+
+    if rendered.lstrip().startswith(("=", "+", "-", "@")):
+        return f"'{rendered}"
+    return rendered
 
 
 def column_name(index: int) -> str:

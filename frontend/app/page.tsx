@@ -29,6 +29,8 @@ type Metric = {
   help: string;
 };
 
+type InvoiceLineFormResult = InvoiceLineInput | "incomplete" | null;
+
 const INVOICE_FORM_LINE_NUMBERS = [1, 2, 3, 4, 5] as const;
 
 function firstParam(
@@ -89,6 +91,9 @@ function messageText(value: string | null) {
   if (value === "invoice_missing_line") {
     return "Ajoute au moins une ligne de facture.";
   }
+  if (value === "invoice_incomplete_line") {
+    return "Complete chaque ligne commencee: description, TVA et montant HT.";
+  }
   if (value === "invalid_sales") {
     return "Les ventes sont incoherentes: HT + TVA doit egaler TTC.";
   }
@@ -116,19 +121,23 @@ function redirectToDashboard(
 function invoiceLineFromForm(
   formData: FormData,
   index: number,
-): InvoiceLineInput | null {
+): InvoiceLineFormResult {
   const description = String(formData.get(`line_${index}_description`) ?? "").trim();
   const amountHt = String(formData.get(`line_${index}_amount_ht`) ?? "").trim();
-  if (!description || !amountHt) {
+  const category = String(formData.get(`line_${index}_category`) ?? "").trim();
+  const vatRate = String(formData.get(`line_${index}_vat_rate`) ?? "").trim();
+  if (!description && !amountHt && !category && !vatRate) {
     return null;
   }
 
-  const category = String(formData.get(`line_${index}_category`) ?? "").trim();
-  const vatRate = String(formData.get(`line_${index}_vat_rate`) ?? "").trim();
+  if (!description || !amountHt || !vatRate) {
+    return "incomplete";
+  }
+
   return {
     description,
     category: category || undefined,
-    vat_rate: vatRate || "20",
+    vat_rate: vatRate,
     amount_ht: amountHt,
   };
 }
@@ -154,9 +163,15 @@ async function createInvoiceAction(formData: FormData) {
 
   const period = String(formData.get("period") ?? currentMonth());
   const openingCash = String(formData.get("opening_cash") ?? "0");
-  const lines = INVOICE_FORM_LINE_NUMBERS.map((lineNumber) =>
+  const lineResults = INVOICE_FORM_LINE_NUMBERS.map((lineNumber) =>
     invoiceLineFromForm(formData, lineNumber),
-  ).filter((line): line is InvoiceLineInput => line !== null);
+  );
+  if (lineResults.includes("incomplete")) {
+    redirectToDashboard(period, openingCash, "invoice_incomplete_line");
+  }
+  const lines = lineResults.filter(
+    (line): line is InvoiceLineInput => line !== null && line !== "incomplete",
+  );
 
   if (lines.length === 0) {
     redirectToDashboard(period, openingCash, "invoice_missing_line");
@@ -197,9 +212,15 @@ async function updateInvoiceAction(formData: FormData) {
   const period = String(formData.get("period") ?? currentMonth());
   const openingCash = String(formData.get("opening_cash") ?? "0");
   const invoiceId = String(formData.get("invoice_id") ?? "");
-  const lines = INVOICE_FORM_LINE_NUMBERS.map((lineNumber) =>
+  const lineResults = INVOICE_FORM_LINE_NUMBERS.map((lineNumber) =>
     invoiceLineFromForm(formData, lineNumber),
-  ).filter((line): line is InvoiceLineInput => line !== null);
+  );
+  if (lineResults.includes("incomplete")) {
+    redirectToDashboard(period, openingCash, "invoice_incomplete_line");
+  }
+  const lines = lineResults.filter(
+    (line): line is InvoiceLineInput => line !== null && line !== "incomplete",
+  );
 
   if (lines.length === 0) {
     redirectToDashboard(period, openingCash, "invoice_missing_line");

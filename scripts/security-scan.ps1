@@ -34,6 +34,8 @@ function Test-AllowlistedSecretLine {
         $Line -match "local-check-" -or
         $Line -match "test-token" -or
         $Line -match "change-me" -or
+        $Line -match "POSTGRES_PASSWORD" -or
+        $Line -match "settings\." -or
         $Line -match "same-value-as-" -or
         $Line -match "your-shared-login-password" -or
         $Line -match "a-long-random-local-secret"
@@ -54,8 +56,8 @@ try {
     foreach ($path in $paths) {
         if (
             $path -match '(^|/)\.env($|\.)' -or
-            $path -match '\.(sqlite|sqlite3|db|dump|bak|backup)$' -or
-            $path -match '(^|/)(uploads|media|documents|invoices|exports|secrets)/'
+            $path -match '\.(sqlite|sqlite3|db|dump|bak|backup|pem|key|crt|log|err)$' -or
+            $path -match '(^|/)(uploads|media|documents|invoices|exports|secrets|tmp|temp)/'
         ) {
             $blockedPaths += $path
         }
@@ -79,7 +81,7 @@ try {
         },
         @{
             Name = "Non-empty secret assignment"
-            Pattern = '(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*["''][^"'']{8,}["'']'
+            Pattern = '(?i)^\s*(\$env:)?[A-Z0-9_]*(API[_-]?KEY|SECRET|TOKEN|PASSWORD)[A-Z0-9_]*\s*[:=]\s*["'']?[^"''\s#]{8,}["'']?'
         }
     )
 

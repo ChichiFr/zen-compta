@@ -153,7 +153,19 @@ class InvoiceService:
 
     def export_rows(self, period_start: date) -> list[tuple[object, ...]]:
         rows = []
-        for invoice in self.list_invoices(period_start=period_start):
+        start = month_start(period_start)
+        end = next_month_start(start)
+        statement = (
+            select(Invoice)
+            .options(selectinload(Invoice.lines))
+            .where(
+                Invoice.status == InvoiceStatus.VALIDATED,
+                Invoice.invoice_date >= start,
+                Invoice.invoice_date < end,
+            )
+            .order_by(Invoice.created_at.desc())
+        )
+        for invoice in self.db.scalars(statement).all():
             for line in invoice.lines:
                 rows.append(
                     (

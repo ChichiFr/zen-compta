@@ -9,8 +9,6 @@ def require_internal_api_token(
     x_internal_api_token: str | None = Header(default=None),
 ) -> None:
     if not settings.internal_api_token:
-        if settings.environment == "local":
-            return
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="internal_api_token_not_configured",

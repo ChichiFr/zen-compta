@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
@@ -36,9 +37,14 @@ def client() -> Iterator[TestClient]:
 
     app = create_app()
     app.dependency_overrides[get_db] = override_get_db
+    original_token = settings.internal_api_token
+    settings.internal_api_token = "test-token"
+    test_client = TestClient(app)
+    test_client.headers.update({"X-Internal-API-Token": "test-token"})
     try:
-        yield TestClient(app)
+        yield test_client
     finally:
+        settings.internal_api_token = original_token
         app.dependency_overrides.clear()
         Base.metadata.drop_all(bind=engine)
 
@@ -342,7 +348,7 @@ def test_list_invoices_can_filter_by_month(client: TestClient):
 
 
 def test_invoice_csv_export_contains_monthly_invoice_lines(client: TestClient):
-    client.post(
+    may_invoice = client.post(
         "/api/invoices",
         json={
             "supplier_name": "May Supplier",
@@ -363,7 +369,8 @@ def test_invoice_csv_export_contains_monthly_invoice_lines(client: TestClient):
                 },
             ],
         },
-    )
+    ).json()
+    client.post(f"/api/invoices/{may_invoice['id']}/validate")
     client.post(
         "/api/invoices",
         json={
@@ -399,7 +406,7 @@ def test_invoice_csv_export_contains_monthly_invoice_lines(client: TestClient):
 
 
 def test_invoice_xlsx_export_is_a_valid_workbook(client: TestClient):
-    client.post(
+    invoice = client.post(
         "/api/invoices",
         json={
             "supplier_name": "May Supplier",
@@ -414,7 +421,8 @@ def test_invoice_xlsx_export_is_a_valid_workbook(client: TestClient):
                 }
             ],
         },
-    )
+    ).json()
+    client.post(f"/api/invoices/{invoice['id']}/validate")
 
     response = client.get(
         "/api/invoices/export.xlsx",
@@ -432,3 +440,76 @@ def test_invoice_xlsx_export_is_a_valid_workbook(client: TestClient):
     assert "<t>May Supplier</t>" in worksheet
     assert "<t>invoice_total_tva</t>" in worksheet
     assert "<t>20.00</t>" in worksheet
+
+
+def test_invoice_export_excludes_draft_invoices(client: TestClient):
+    validated = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Validated Supplier",
+            "invoice_date": "2026-05-20",
+            "lines": [
+                {
+                    "description": "Validated line",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{validated['id']}/validate")
+    client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Draft Supplier",
+            "invoice_date": "2026-05-21",
+            "lines": [
+                {
+                    "description": "Draft line",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    )
+
+    response = client.get(
+        "/api/invoices/export.csv",
+        params={"period_start": "2026-05-01"},
+    )
+
+    assert response.status_code == 200
+    rows = list(csv.DictReader(StringIO(response.text)))
+    assert [row["supplier_name"] for row in rows] == ["Validated Supplier"]
+
+
+def test_invoice_csv_export_neutralizes_spreadsheet_formulas(client: TestClient):
+    invoice = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "=cmd",
+            "invoice_date": "2026-05-20",
+            "invoice_number": "@danger",
+            "lines": [
+                {
+                    "description": "+formula",
+                    "category": "-category",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{invoice['id']}/validate")
+
+    response = client.get(
+        "/api/invoices/export.csv",
+        params={"period_start": "2026-05-01"},
+    )
+
+    assert response.status_code == 200
+    rows = list(csv.DictReader(StringIO(response.text)))
+    assert rows[0]["supplier_name"] == "'=cmd"
+    assert rows[0]["invoice_number"] == "'@danger"
+    assert rows[0]["line_description"] == "'+formula"
+    assert rows[0]["category"] == "'-category"
