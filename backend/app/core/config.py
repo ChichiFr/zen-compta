@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     )
     environment: str = "local"
     internal_api_token: str | None = None
+    upload_storage_dir: str = "private_uploads"
+    max_upload_bytes: int = 10 * 1024 * 1024
 
     model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
 

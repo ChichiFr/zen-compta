@@ -58,6 +58,26 @@ export type Invoice = {
   lines: InvoiceLine[];
 };
 
+export type DocumentImport = {
+  id: string;
+  original_filename: string;
+  stored_filename: string;
+  storage_path: string;
+  content_type: string;
+  size_bytes: number;
+  status:
+    | "uploaded"
+    | "extraction_pending"
+    | "extraction_failed"
+    | "extraction_completed";
+  created_at: string;
+};
+
+export type DocumentImportUpload = {
+  document_import: DocumentImport;
+  invoice: Invoice;
+};
+
 export type ApiResult<T> =
   | { data: T; error: null }
   | { data: null; error: string };
@@ -102,11 +122,12 @@ function invoiceExportUrl(path: "export.csv" | "export.xlsx", periodStart: strin
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   try {
+    const isFormData = init?.body instanceof FormData;
     const response = await fetch(`${apiBaseUrl()}/api${path}`, {
       ...init,
       cache: "no-store",
       headers: {
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         "X-Internal-API-Token": internalApiToken(),
         ...init?.headers,
       },
@@ -171,6 +192,15 @@ export async function createInvoice(payload: {
       ...payload,
       source: "manual",
     }),
+  });
+}
+
+export async function uploadDocumentImport(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return fetchJson<DocumentImportUpload>("/document-imports", {
+    method: "POST",
+    body: formData,
   });
 }
 

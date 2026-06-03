@@ -15,6 +15,7 @@ import {
   invoiceXlsxExportUrl,
   saveMonthlySales,
   updateInvoice,
+  uploadDocumentImport,
   validateInvoice,
 } from "@/lib/api";
 import { clearSession, requireAuth } from "@/lib/session";
@@ -75,6 +76,15 @@ function messageText(value: string | null) {
   }
   if (value === "invoice_created") {
     return "Facture creee. Elle doit encore etre validee humainement.";
+  }
+  if (value === "document_uploaded") {
+    return "Document importe. Une facture a verifier a ete creee.";
+  }
+  if (value === "document_upload_missing") {
+    return "Choisis un PDF ou une image de facture a importer.";
+  }
+  if (value === "document_upload_failed") {
+    return "Import impossible. Verifie le fichier, puis reessaie.";
   }
   if (value === "invoice_validated") {
     return "Facture validee.";
@@ -188,6 +198,26 @@ async function createInvoiceAction(formData: FormData) {
     period,
     openingCash,
     result.error ? result.error : "invoice_created",
+  );
+}
+
+async function uploadDocumentAction(formData: FormData) {
+  "use server";
+
+  await requireAuth();
+
+  const period = String(formData.get("period") ?? currentMonth());
+  const openingCash = String(formData.get("opening_cash") ?? "0");
+  const file = formData.get("invoice_file");
+  if (!(file instanceof File) || file.size === 0) {
+    redirectToDashboard(period, openingCash, "document_upload_missing");
+  }
+
+  const result = await uploadDocumentImport(file);
+  redirectToDashboard(
+    period,
+    openingCash,
+    result.error ? "document_upload_failed" : "document_uploaded",
   );
 }
 
@@ -441,6 +471,45 @@ function InvoiceForm({
       <div className="mt-5 flex justify-end">
         <button className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
           Creer la facture
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function DocumentUploadForm({
+  period,
+  openingCash,
+}: {
+  period: string;
+  openingCash: string;
+}) {
+  return (
+    <form
+      action={uploadDocumentAction}
+      className="rounded-md border border-slate-200 bg-white p-5"
+    >
+      <div className="border-b border-slate-200 pb-4">
+        <h2 className="text-base font-semibold">Uploader une facture</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          PDF ou image stocke localement. La facture reste a verifier.
+        </p>
+      </div>
+      <input name="period" type="hidden" value={period} />
+      <input name="opening_cash" type="hidden" value={openingCash} />
+      <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end">
+        <label className="text-sm font-medium text-slate-600 sm:flex-1">
+          Fichier facture
+          <input
+            accept="application/pdf,image/jpeg,image/png,image/webp"
+            className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950"
+            name="invoice_file"
+            required
+            type="file"
+          />
+        </label>
+        <button className="h-10 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white">
+          Importer
         </button>
       </div>
     </form>
@@ -914,7 +983,10 @@ export default async function Home({
           </aside>
         </section>
 
-        <InvoiceForm period={period} openingCash={openingCash} />
+        <section className="grid gap-6 lg:grid-cols-2">
+          <DocumentUploadForm period={period} openingCash={openingCash} />
+          <InvoiceForm period={period} openingCash={openingCash} />
+        </section>
         <InvoiceList
           invoices={invoices.data ?? []}
           csvExportUrl={invoiceCsvUrl}
