@@ -10,6 +10,7 @@ import {
   dashboardXlsxExportUrl,
   getDashboardSummary,
   getInvoices,
+  getInvoicesToReviewWithoutDate,
   getMonthlySales,
   invoiceCsvExportUrl,
   invoiceXlsxExportUrl,
@@ -19,6 +20,7 @@ import {
   validateInvoice,
 } from "@/lib/api";
 import { clearSession, requireAuth } from "@/lib/session";
+import { DocumentFileInput } from "@/components/DocumentFileInput";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +81,9 @@ function messageText(value: string | null) {
   }
   if (value === "document_uploaded") {
     return "Document importe. Une facture a verifier a ete creee.";
+  }
+  if (value === "document_uploaded_to_inbox") {
+    return "Document importe. La facture est dans Factures importees a traiter.";
   }
   if (value === "document_upload_missing") {
     return "Choisis un PDF ou une image de facture a importer.";
@@ -217,7 +222,7 @@ async function uploadDocumentAction(formData: FormData) {
   redirectToDashboard(
     period,
     openingCash,
-    result.error ? "document_upload_failed" : "document_uploaded",
+    result.error ? "document_upload_failed" : "document_uploaded_to_inbox",
   );
 }
 
@@ -498,16 +503,10 @@ function DocumentUploadForm({
       <input name="period" type="hidden" value={period} />
       <input name="opening_cash" type="hidden" value={openingCash} />
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end">
-        <label className="text-sm font-medium text-slate-600 sm:flex-1">
-          Fichier facture
-          <input
-            accept="application/pdf,image/jpeg,image/png,image/webp"
-            className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950"
-            name="invoice_file"
-            required
-            type="file"
-          />
-        </label>
+        <div className="text-sm font-medium text-slate-600 sm:flex-1">
+          <p>Fichier facture</p>
+          <DocumentFileInput />
+        </div>
         <button className="h-10 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white">
           Importer
         </button>
@@ -630,41 +629,47 @@ function InvoiceEditForm({
 }
 
 function InvoiceList({
+  title,
+  emptyText,
   invoices,
   csvExportUrl,
   xlsxExportUrl,
   period,
   openingCash,
 }: {
+  title: string;
+  emptyText: string;
   invoices: Invoice[];
-  csvExportUrl: string;
-  xlsxExportUrl: string;
+  csvExportUrl?: string;
+  xlsxExportUrl?: string;
   period: string;
   openingCash: string;
 }) {
   return (
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="flex flex-col justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
-        <h2 className="text-base font-semibold">Factures</h2>
-        <div className="flex flex-wrap gap-2">
-          <a
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900"
-            href={csvExportUrl}
-          >
-            Export factures CSV
-          </a>
-          <a
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900"
-            href={xlsxExportUrl}
-          >
-            Export factures Excel
-          </a>
-        </div>
+        <h2 className="text-base font-semibold">{title}</h2>
+        {csvExportUrl && xlsxExportUrl ? (
+          <div className="flex flex-wrap gap-2">
+            <a
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900"
+              href={csvExportUrl}
+            >
+              Export factures CSV
+            </a>
+            <a
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900"
+              href={xlsxExportUrl}
+            >
+              Export factures Excel
+            </a>
+          </div>
+        ) : null}
       </div>
       <div className="divide-y divide-slate-200">
         {invoices.length === 0 ? (
           <p className="px-5 py-4 text-sm text-slate-500">
-            Aucune facture pour le moment.
+            {emptyText}
           </p>
         ) : (
           invoices.slice(0, 8).map((invoice) => (
@@ -816,10 +821,11 @@ export default async function Home({
   const xlsxExportUrl = dashboardXlsxExportUrl(periodStart, openingCash);
   const invoiceCsvUrl = invoiceCsvExportUrl(periodStart);
   const invoiceXlsxUrl = invoiceXlsxExportUrl(periodStart);
-  const [dashboard, monthlySales, invoices] = await Promise.all([
+  const [dashboard, monthlySales, invoices, reviewInboxInvoices] = await Promise.all([
     getDashboardSummary(periodStart, openingCash),
     getMonthlySales(periodStart),
     getInvoices(periodStart),
+    getInvoicesToReviewWithoutDate(),
   ]);
 
   return (
@@ -988,6 +994,15 @@ export default async function Home({
           <InvoiceForm period={period} openingCash={openingCash} />
         </section>
         <InvoiceList
+          title="Factures importees a traiter"
+          emptyText="Aucune facture importee en attente de date."
+          invoices={reviewInboxInvoices.data ?? []}
+          period={period}
+          openingCash={openingCash}
+        />
+        <InvoiceList
+          title="Factures du mois"
+          emptyText="Aucune facture pour ce mois."
           invoices={invoices.data ?? []}
           csvExportUrl={invoiceCsvUrl}
           xlsxExportUrl={invoiceXlsxUrl}

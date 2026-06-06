@@ -31,9 +31,13 @@ def create_invoice(
 @router.get("", response_model=list[InvoiceRead])
 def list_invoices(
     period_start: date | None = Query(default=None),
+    needs_review_without_date: bool = Query(default=False),
     service: InvoiceService = Depends(get_invoice_service),
 ) -> list[InvoiceRead]:
-    return service.list_invoices(period_start=period_start)
+    return service.list_invoices(
+        period_start=period_start,
+        needs_review_without_date=needs_review_without_date,
+    )
 
 
 @router.get("/export.csv", response_class=Response)

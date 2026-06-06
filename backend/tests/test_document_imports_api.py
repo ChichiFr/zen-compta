@@ -70,7 +70,27 @@ def test_upload_document_import_creates_needs_review_invoice(client: TestClient)
     assert body["invoice"]["supplier_name"] == "A verifier"
     assert body["invoice"]["status"] == "needs_review"
     assert body["invoice"]["source"] == "ai_upload"
+    assert body["invoice"]["invoice_date"] is None
     assert body["invoice"]["total_ht"] == "0.00"
+
+    monthly_invoices_response = client.get(
+        "/api/invoices",
+        params={"period_start": "2026-06-01"},
+    )
+
+    assert monthly_invoices_response.status_code == 200
+    assert monthly_invoices_response.json() == []
+
+    review_invoices_response = client.get(
+        "/api/invoices",
+        params={"needs_review_without_date": "true"},
+    )
+
+    assert review_invoices_response.status_code == 200
+    invoices = review_invoices_response.json()
+    assert len(invoices) == 1
+    assert invoices[0]["supplier_name"] == "A verifier"
+    assert invoices[0]["invoice_date"] is None
 
 
 def test_upload_document_import_rejects_unsupported_file_type(client: TestClient):
@@ -124,6 +144,26 @@ def test_uploaded_invoice_is_excluded_from_official_exports(client: TestClient):
             "invoice_total_ht,invoice_total_tva,invoice_total_ttc"
         )
     ]
+
+
+def test_uploaded_invoice_without_date_is_excluded_from_monthly_dashboard(
+    client: TestClient,
+):
+    client.post(
+        "/api/document-imports",
+        files={"file": ("metro.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    )
+
+    response = client.get(
+        "/api/dashboard/summary",
+        params={"period_start": "2026-06-01", "opening_cash": "500.00"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["invoices_to_review_count"] == 0
+    assert body["validated_invoices_ttc"] == "0.00"
+    assert body["estimated_cash"] == "500.00"
 
 
 def test_document_import_upload_requires_internal_token(client: TestClient):

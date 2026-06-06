@@ -122,12 +122,24 @@ class InvoiceService:
         self.db.commit()
         return self.get_invoice(invoice.id)
 
-    def list_invoices(self, period_start: date | None = None) -> list[Invoice]:
+    def list_invoices(
+        self,
+        period_start: date | None = None,
+        needs_review_without_date: bool = False,
+    ) -> list[Invoice]:
         statement = (
             select(Invoice)
             .options(selectinload(Invoice.lines))
             .where(Invoice.status != InvoiceStatus.ARCHIVED)
         )
+        if needs_review_without_date:
+            statement = statement.where(
+                Invoice.status.in_([InvoiceStatus.DRAFT, InvoiceStatus.NEEDS_REVIEW]),
+                Invoice.invoice_date.is_(None),
+            )
+            statement = statement.order_by(Invoice.created_at.desc())
+            return list(self.db.scalars(statement).all())
+
         if period_start is not None:
             start = month_start(period_start)
             end = next_month_start(start)
