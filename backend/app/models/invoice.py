@@ -48,7 +48,9 @@ class Invoice(Base):
         nullable=False,
         default=InvoiceSource.MANUAL,
     )
-    document_import_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    document_import_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("document_imports.id", ondelete="SET NULL"), nullable=True
+    )
     total_ht: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total_tva: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), nullable=False, default=0

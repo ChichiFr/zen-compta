@@ -57,7 +57,7 @@ try {
         if (
             $path -match '(^|/)\.env($|\.)' -or
             $path -match '\.(sqlite|sqlite3|db|dump|bak|backup|pem|key|crt|log|err)$' -or
-            $path -match '(^|/)(uploads|media|documents|invoices|exports|secrets|tmp|temp)/'
+            $path -match '(^|/)(uploads|private_uploads|media|documents|invoices|exports|secrets|tmp|temp)/'
         ) {
             $blockedPaths += $path
         }

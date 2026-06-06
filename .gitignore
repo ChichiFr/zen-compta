@@ -17,6 +17,7 @@ secrets/
 
 # Uploaded/generated business files
 uploads/
+private_uploads/
 media/
 documents/
 invoices/
