@@ -4,7 +4,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Invoice, InvoiceLine, InvoiceStatus
+from app.models import Invoice, InvoiceLine, InvoiceSource, InvoiceStatus
 from app.schemas.invoice import InvoiceCreate, InvoiceUpdate
 from app.services.invoice_calculations import (
     InvoiceLineDraft,
@@ -12,6 +12,11 @@ from app.services.invoice_calculations import (
     calculate_line,
     calculate_totals,
     validation_errors,
+)
+from app.services.invoice_categories import (
+    append_review_reason,
+    category_label,
+    normalize_category_code,
 )
 from app.services.periods import month_start, next_month_start
 from app.services.tabular_exports import write_csv, write_xlsx
@@ -70,19 +75,28 @@ class InvoiceService:
         payload: InvoiceCreate | InvoiceUpdate,
         invoice: Invoice | None = None,
     ) -> Invoice:
-        calculated_lines = [
-            calculate_line(
-                InvoiceLineDraft(
-                    description=line.description,
-                    vat_rate=line.vat_rate,
-                    amount_ht=line.amount_ht,
-                    amount_tva=line.amount_tva,
-                    amount_ttc=line.amount_ttc,
-                    needs_review_reason=line.needs_review_reason,
+        normalized_categories = [
+            normalize_category_code(line.category) for line in payload.lines
+        ]
+        calculated_lines = []
+        for index, line in enumerate(payload.lines):
+            _, category_review_reason = normalized_categories[index]
+            calculated_lines.append(
+                calculate_line(
+                    InvoiceLineDraft(
+                        description=line.description,
+                        vat_rate=line.vat_rate,
+                        amount_ht=line.amount_ht,
+                        amount_tva=line.amount_tva,
+                        amount_ttc=line.amount_ttc,
+                        needs_review_reason=append_review_reason(
+                            line.needs_review_reason,
+                            category_review_reason,
+                        ),
+                    )
                 )
             )
-            for line in payload.lines
-        ]
+
         totals = calculate_totals(calculated_lines)
         status = (
             InvoiceStatus.NEEDS_REVIEW
@@ -108,7 +122,7 @@ class InvoiceService:
             InvoiceLine(
                 position=index,
                 description=line.description,
-                category=payload.lines[index].category,
+                category=normalized_categories[index][0],
                 vat_rate=line.vat_rate,
                 amount_ht=line.amount_ht,
                 amount_tva=line.amount_tva,
@@ -126,12 +140,21 @@ class InvoiceService:
         self,
         period_start: date | None = None,
         needs_review_without_date: bool = False,
+        imported_to_review: bool = False,
     ) -> list[Invoice]:
         statement = (
             select(Invoice)
             .options(selectinload(Invoice.lines))
             .where(Invoice.status != InvoiceStatus.ARCHIVED)
         )
+        if imported_to_review:
+            statement = statement.where(
+                Invoice.source == InvoiceSource.AI_UPLOAD,
+                Invoice.status.in_([InvoiceStatus.DRAFT, InvoiceStatus.NEEDS_REVIEW]),
+            )
+            statement = statement.order_by(Invoice.created_at.desc())
+            return list(self.db.scalars(statement).all())
+
         if needs_review_without_date:
             statement = statement.where(
                 Invoice.status.in_([InvoiceStatus.DRAFT, InvoiceStatus.NEEDS_REVIEW]),
@@ -189,7 +212,7 @@ class InvoiceService:
                         invoice.status.value,
                         line.position + 1,
                         line.description,
-                        line.category or "",
+                        category_label(line.category),
                         line.vat_rate,
                         line.amount_ht,
                         line.amount_tva,

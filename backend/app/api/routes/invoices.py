@@ -32,11 +32,13 @@ def create_invoice(
 def list_invoices(
     period_start: date | None = Query(default=None),
     needs_review_without_date: bool = Query(default=False),
+    imported_to_review: bool = Query(default=False),
     service: InvoiceService = Depends(get_invoice_service),
 ) -> list[InvoiceRead]:
     return service.list_invoices(
         period_start=period_start,
         needs_review_without_date=needs_review_without_date,
+        imported_to_review=imported_to_review,
     )
 
 
