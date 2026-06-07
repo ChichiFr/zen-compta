@@ -9,8 +9,8 @@ import {
   dashboardCsvExportUrl,
   dashboardXlsxExportUrl,
   getDashboardSummary,
+  getImportedInvoicesToReview,
   getInvoices,
-  getInvoicesToReviewWithoutDate,
   getMonthlySales,
   invoiceCsvExportUrl,
   invoiceXlsxExportUrl,
@@ -21,6 +21,10 @@ import {
 } from "@/lib/api";
 import { clearSession, requireAuth } from "@/lib/session";
 import { DocumentFileInput } from "@/components/DocumentFileInput";
+import {
+  INVOICE_CATEGORIES,
+  invoiceCategoryLabel,
+} from "@/lib/invoiceCategories";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +88,12 @@ function messageText(value: string | null) {
   }
   if (value === "document_uploaded_to_inbox") {
     return "Document importe. La facture est dans Factures importees a traiter.";
+  }
+  if (value === "document_extracted") {
+    return "Document importe et pre-rempli par IA. Verifie la facture avant validation.";
+  }
+  if (value === "document_extraction_failed") {
+    return "Document importe, mais l extraction IA a echoue. Complete la facture manuellement.";
   }
   if (value === "document_upload_missing") {
     return "Choisis un PDF ou une image de facture a importer.";
@@ -219,10 +229,17 @@ async function uploadDocumentAction(formData: FormData) {
   }
 
   const result = await uploadDocumentImport(file);
+  let message = "document_uploaded_to_inbox";
+  if (result.data?.document_import.status === "extraction_completed") {
+    message = "document_extracted";
+  }
+  if (result.data?.document_import.status === "extraction_failed") {
+    message = "document_extraction_failed";
+  }
   redirectToDashboard(
     period,
     openingCash,
-    result.error ? "document_upload_failed" : "document_uploaded_to_inbox",
+    result.error ? "document_upload_failed" : message,
   );
 }
 
@@ -375,6 +392,29 @@ function statusLabel(status: Invoice["status"]) {
   return "Brouillon";
 }
 
+function CategorySelect({
+  name,
+  defaultValue,
+}: {
+  name: string;
+  defaultValue?: string | null;
+}) {
+  return (
+    <select
+      className="mt-1 block h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-slate-950"
+      defaultValue={defaultValue ?? ""}
+      name={name}
+    >
+      <option value="">A categoriser</option>
+      {INVOICE_CATEGORIES.map(([code, label]) => (
+        <option key={code} value={code}>
+          {label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function InvoiceForm({
   period,
   openingCash,
@@ -425,7 +465,7 @@ function InvoiceForm({
       </div>
       {INVOICE_FORM_LINE_NUMBERS.map((lineNumber) => (
         <div
-          className="mt-5 grid gap-4 border-t border-slate-100 pt-5 md:grid-cols-[minmax(0,1fr)_120px_140px_140px]"
+          className="mt-5 grid gap-4 border-t border-slate-100 pt-5 md:grid-cols-[minmax(0,1fr)_220px_140px_140px]"
           key={lineNumber}
         >
           <label className="text-sm font-medium text-slate-600">
@@ -440,12 +480,7 @@ function InvoiceForm({
           </label>
           <label className="text-sm font-medium text-slate-600">
             Categorie
-            <input
-              className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
-              name={`line_${lineNumber}_category`}
-              placeholder="601"
-              type="text"
-            />
+            <CategorySelect name={`line_${lineNumber}_category`} />
           </label>
           <label className="text-sm font-medium text-slate-600">
             TVA %
@@ -568,7 +603,7 @@ function InvoiceEditForm({
           const line = invoice.lines[lineNumber - 1];
           return (
             <div
-              className="mt-4 grid gap-4 border-t border-slate-200 pt-4 md:grid-cols-[minmax(0,1fr)_120px_140px_140px]"
+              className="mt-4 grid gap-4 border-t border-slate-200 pt-4 md:grid-cols-[minmax(0,1fr)_220px_140px_140px]"
               key={lineNumber}
             >
               <label className="text-sm font-medium text-slate-600">
@@ -583,11 +618,9 @@ function InvoiceEditForm({
               </label>
               <label className="text-sm font-medium text-slate-600">
                 Categorie
-                <input
-                  className="mt-1 block h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-slate-950"
-                  defaultValue={line?.category ?? ""}
+                <CategorySelect
+                  defaultValue={line?.category}
                   name={`line_${lineNumber}_category`}
-                  type="text"
                 />
               </label>
               <label className="text-sm font-medium text-slate-600">
@@ -748,7 +781,7 @@ function InvoiceList({
               </div>
               <div className="mt-4 overflow-x-auto rounded-md border border-slate-200">
                 <div className="min-w-[720px]">
-                  <div className="grid grid-cols-[minmax(0,1fr)_90px_90px_110px_110px_110px] bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <div className="grid grid-cols-[minmax(0,1fr)_180px_90px_110px_110px_110px] bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                     <span>Ligne</span>
                     <span>Categorie</span>
                     <span>TVA</span>
@@ -759,7 +792,7 @@ function InvoiceList({
                   <div className="divide-y divide-slate-200">
                     {invoice.lines.map((line) => (
                       <div
-                        className="grid grid-cols-[minmax(0,1fr)_90px_90px_110px_110px_110px] gap-0 px-3 py-3 text-sm"
+                        className="grid grid-cols-[minmax(0,1fr)_180px_90px_110px_110px_110px] gap-0 px-3 py-3 text-sm"
                         key={line.id}
                       >
                         <div>
@@ -773,7 +806,7 @@ function InvoiceList({
                           ) : null}
                         </div>
                         <span className="text-slate-600">
-                          {line.category ?? "-"}
+                          {invoiceCategoryLabel(line.category)}
                         </span>
                         <span className="text-slate-600">{line.vat_rate}%</span>
                         <span className="font-medium">
@@ -825,7 +858,7 @@ export default async function Home({
     getDashboardSummary(periodStart, openingCash),
     getMonthlySales(periodStart),
     getInvoices(periodStart),
-    getInvoicesToReviewWithoutDate(),
+    getImportedInvoicesToReview(),
   ]);
 
   return (
@@ -995,7 +1028,7 @@ export default async function Home({
         </section>
         <InvoiceList
           title="Factures importees a traiter"
-          emptyText="Aucune facture importee en attente de date."
+          emptyText="Aucune facture importee a traiter."
           invoices={reviewInboxInvoices.data ?? []}
           period={period}
           openingCash={openingCash}

@@ -180,8 +180,8 @@ export async function getInvoices(periodStart?: string) {
   return fetchJson<Invoice[]>(`/invoices?${params.toString()}`);
 }
 
-export async function getInvoicesToReviewWithoutDate() {
-  const params = new URLSearchParams({ needs_review_without_date: "true" });
+export async function getImportedInvoicesToReview() {
+  const params = new URLSearchParams({ imported_to_review: "true" });
   return fetchJson<Invoice[]>(`/invoices?${params.toString()}`);
 }
 

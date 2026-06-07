@@ -59,13 +59,13 @@ def test_create_invoice_returns_draft_with_calculated_totals(client: TestClient)
             "lines": [
                 {
                     "description": "Matieres premieres",
-                    "category": "601",
+                    "category": "raw_materials_20",
                     "vat_rate": "10",
                     "amount_ht": "100.00",
                 },
                 {
                     "description": "Materiel",
-                    "category": "606",
+                    "category": "cleaning_products",
                     "vat_rate": "20",
                     "amount_ht": "50.00",
                 },
@@ -104,6 +104,32 @@ def test_create_invoice_marks_mismatch_as_needs_review(client: TestClient):
     body = response.json()
     assert body["status"] == "needs_review"
     assert body["lines"][0]["needs_review_reason"] == "vat_amount_mismatch"
+
+
+def test_create_invoice_marks_unknown_category_as_needs_review(
+    client: TestClient,
+):
+    response = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-05-01",
+            "lines": [
+                {
+                    "description": "Categorie libre",
+                    "category": "601",
+                    "vat_rate": "10",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "needs_review"
+    assert body["lines"][0]["category"] == "other"
+    assert body["lines"][0]["needs_review_reason"] == "unknown_category"
 
 
 def test_validate_invoice_changes_status_when_complete(client: TestClient):
@@ -153,13 +179,13 @@ def test_update_invoice_before_validation_recalculates_totals(client: TestClient
             "lines": [
                 {
                     "description": "Achats corriges",
-                    "category": "601",
+                    "category": "raw_materials_20",
                     "vat_rate": "20",
                     "amount_ht": "50.00",
                 },
                 {
                     "description": "Frais",
-                    "category": "625",
+                    "category": "business_meals",
                     "vat_rate": "10",
                     "amount_ht": "30.00",
                 },
@@ -357,13 +383,13 @@ def test_invoice_csv_export_contains_monthly_invoice_lines(client: TestClient):
             "lines": [
                 {
                     "description": "Achats 20",
-                    "category": "601",
+                    "category": "raw_materials_20",
                     "vat_rate": "20",
                     "amount_ht": "100.00",
                 },
                 {
                     "description": "Achats 5.5",
-                    "category": "601",
+                    "category": "raw_materials_5_5",
                     "vat_rate": "5.5",
                     "amount_ht": "50.00",
                 },
@@ -415,7 +441,7 @@ def test_invoice_xlsx_export_is_a_valid_workbook(client: TestClient):
             "lines": [
                 {
                     "description": "Achats 20",
-                    "category": "601",
+                    "category": "raw_materials_20",
                     "vat_rate": "20",
                     "amount_ht": "100.00",
                 }
@@ -493,7 +519,7 @@ def test_invoice_csv_export_neutralizes_spreadsheet_formulas(client: TestClient)
             "lines": [
                 {
                     "description": "+formula",
-                    "category": "-category",
+                    "category": "other",
                     "vat_rate": "20",
                     "amount_ht": "100.00",
                 }
@@ -512,4 +538,4 @@ def test_invoice_csv_export_neutralizes_spreadsheet_formulas(client: TestClient)
     assert rows[0]["supplier_name"] == "'=cmd"
     assert rows[0]["invoice_number"] == "'@danger"
     assert rows[0]["line_description"] == "'+formula"
-    assert rows[0]["category"] == "'-category"
+    assert rows[0]["category"] == "AUTRE"

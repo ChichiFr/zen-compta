@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     internal_api_token: str | None = None
     upload_storage_dir: str = "private_uploads"
     max_upload_bytes: int = 10 * 1024 * 1024
+    openai_api_key: str | None = None
+    openai_invoice_model: str = "gpt-5.5"
 
     model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
 
