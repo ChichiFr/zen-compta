@@ -1,6 +1,13 @@
 from fastapi import Depends, FastAPI
 
-from app.api.routes import dashboard, document_imports, health, invoices, monthly_sales
+from app.api.routes import (
+    dashboard,
+    document_imports,
+    health,
+    invoices,
+    monthly_sales,
+    performance,
+)
 from app.core.auth import require_internal_api_token
 from app.core.config import settings
 
@@ -20,6 +27,11 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         dashboard.router,
+        prefix="/api",
+        dependencies=[Depends(require_internal_api_token)],
+    )
+    app.include_router(
+        performance.router,
         prefix="/api",
         dependencies=[Depends(require_internal_api_token)],
     )

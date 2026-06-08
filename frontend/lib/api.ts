@@ -17,6 +17,40 @@ export type DashboardSummary = {
   cash_is_bank_connected: boolean;
 };
 
+export type MonthlyCashFlowInputs = {
+  id: string | null;
+  period_start: string;
+  salaries: string;
+  social_charges: string;
+  investments_cash: string;
+  loan_repayments_cash: string;
+};
+
+export type MonthlyPerformanceSummary = {
+  period_start: string;
+  inputs: MonthlyCashFlowInputs;
+  performance: {
+    sales_ht: string;
+    raw_materials_ht: string;
+    packaging_ht: string;
+    salaries: string;
+    social_charges: string;
+    external_purchases_taxes_ht: string;
+    ebe_cash: string;
+  };
+  non_operating_cash_flow: {
+    investments_cash: string;
+    loan_repayments_cash: string;
+    vat_payable_estimate: string;
+    vat_credit_estimate: string;
+    total_cash_outflow: string;
+    forecast_relevant_cash_outflow: string;
+  };
+  vat_collected: string;
+  vat_deductible: string;
+  data_quality_notes: string[];
+};
+
 export type MonthlySales = {
   id: string;
   period_start: string;
@@ -154,6 +188,13 @@ export async function getDashboardSummary(
   return fetchJson<DashboardSummary>(`/dashboard/summary?${params.toString()}`);
 }
 
+export async function getMonthlyPerformanceSummary(periodStart: string) {
+  const params = new URLSearchParams({ period_start: periodStart });
+  return fetchJson<MonthlyPerformanceSummary>(
+    `/performance/monthly?${params.toString()}`,
+  );
+}
+
 export async function getMonthlySales(periodStart: string) {
   return fetchJson<MonthlySales>(`/monthly-sales/${periodStart}`);
 }
@@ -170,6 +211,24 @@ export async function saveMonthlySales(
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+export async function saveMonthlyCashFlowInputs(
+  periodStart: string,
+  payload: {
+    salaries: string;
+    social_charges: string;
+    investments_cash: string;
+    loan_repayments_cash: string;
+  },
+) {
+  return fetchJson<MonthlyCashFlowInputs>(
+    `/performance/monthly-inputs/${periodStart}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export async function getInvoices(periodStart?: string) {

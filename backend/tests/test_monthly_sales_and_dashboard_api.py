@@ -13,7 +13,14 @@ from app.core.config import settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
-from app.models import Invoice, InvoiceLine, MonthlySales  # noqa: F401
+from app.models import (  # noqa: F401
+    Invoice,
+    InvoiceLine,
+    MonthlyCashFlowInputs,
+    MonthlySales,
+)
+from app.services.invoice_categories import ALLOWED_CATEGORY_CODES
+from app.services.performance_service import PERFORMANCE_CATEGORY_BUCKETS
 
 
 @pytest.fixture
@@ -166,6 +173,44 @@ def test_dashboard_summary_uses_validated_invoices_for_vat_and_cash(
     assert body["cash_is_bank_connected"] is False
 
 
+def test_dashboard_summary_does_not_show_negative_vat_payable(client: TestClient):
+    validated_invoice = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-05-05",
+            "lines": [
+                {
+                    "description": "Achats avec TVA deductible superieure",
+                    "vat_rate": "20",
+                    "amount_ht": "1000.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{validated_invoice['id']}/validate")
+    client.put(
+        "/api/monthly-sales/2026-05-01",
+        json={
+            "sales_ht": "100.00",
+            "vat_collected": "20.00",
+            "sales_ttc": "120.00",
+        },
+    )
+
+    response = client.get(
+        "/api/dashboard/summary",
+        params={"period_start": "2026-05-20", "opening_cash": "500.00"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["vat_deductible"] == "200.00"
+    assert body["vat_collected"] == "20.00"
+    assert body["vat_payable_estimate"] == "0.00"
+    assert body["estimated_cash"] == "-580.00"
+
+
 def test_dashboard_summary_csv_export_matches_monthly_summary(client: TestClient):
     validated_invoice = client.post(
         "/api/invoices",
@@ -241,3 +286,209 @@ def test_dashboard_summary_xlsx_export_is_a_valid_workbook(client: TestClient):
     assert "<t>2026-05-01</t>" in worksheet
     assert "<t>vat_collected</t>" in worksheet
     assert "<t>200.00</t>" in worksheet
+
+
+def test_monthly_cash_flow_inputs_upsert_normalizes_period(client: TestClient):
+    response = client.put(
+        "/api/performance/monthly-inputs/2026-05-20",
+        json={
+            "salaries": "1200.00",
+            "social_charges": "400.00",
+            "investments_cash": "700.00",
+            "loan_repayments_cash": "300.00",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["period_start"] == "2026-05-01"
+    assert body["salaries"] == "1200.00"
+    assert body["social_charges"] == "400.00"
+    assert body["investments_cash"] == "700.00"
+    assert body["loan_repayments_cash"] == "300.00"
+
+    updated = client.put(
+        "/api/performance/monthly-inputs/2026-05-01",
+        json={
+            "salaries": "1300.00",
+            "social_charges": "450.00",
+            "investments_cash": "0.00",
+            "loan_repayments_cash": "250.00",
+        },
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["id"] == body["id"]
+    assert updated.json()["salaries"] == "1300.00"
+
+
+def test_monthly_performance_summary_splits_operating_and_non_operating_cash(
+    client: TestClient,
+):
+    validated_invoice = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-05-05",
+            "lines": [
+                {
+                    "description": "Matieres premieres",
+                    "category": "raw_materials_5_5",
+                    "vat_rate": "5.5",
+                    "amount_ht": "1000.00",
+                },
+                {
+                    "description": "Emballages",
+                    "category": "lost_packaging_20",
+                    "vat_rate": "20",
+                    "amount_ht": "200.00",
+                },
+                {
+                    "description": "Maintenance",
+                    "category": "maintenance",
+                    "vat_rate": "20",
+                    "amount_ht": "300.00",
+                },
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{validated_invoice['id']}/validate")
+    client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Draft supplier",
+            "invoice_date": "2026-05-06",
+            "lines": [
+                {
+                    "description": "Brouillon ignore",
+                    "category": "raw_materials_20",
+                    "vat_rate": "20",
+                    "amount_ht": "999.00",
+                }
+            ],
+        },
+    )
+    client.put(
+        "/api/monthly-sales/2026-05-01",
+        json={
+            "sales_ht": "5000.00",
+            "vat_collected": "500.00",
+            "sales_ttc": "5500.00",
+        },
+    )
+    client.put(
+        "/api/performance/monthly-inputs/2026-05-01",
+        json={
+            "salaries": "1200.00",
+            "social_charges": "400.00",
+            "investments_cash": "700.00",
+            "loan_repayments_cash": "300.00",
+        },
+    )
+
+    response = client.get(
+        "/api/performance/monthly",
+        params={"period_start": "2026-05-20"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["period_start"] == "2026-05-01"
+    assert body["data_quality_notes"] == []
+    assert body["vat_collected"] == "500.00"
+    assert body["vat_deductible"] == "155.00"
+    assert body["performance"] == {
+        "sales_ht": "5000.00",
+        "raw_materials_ht": "1000.00",
+        "packaging_ht": "200.00",
+        "salaries": "1200.00",
+        "social_charges": "400.00",
+        "external_purchases_taxes_ht": "300.00",
+        "ebe_cash": "1900.00",
+    }
+    assert body["non_operating_cash_flow"] == {
+        "investments_cash": "700.00",
+        "loan_repayments_cash": "300.00",
+        "vat_payable_estimate": "345.00",
+        "vat_credit_estimate": "0.00",
+        "total_cash_outflow": "1345.00",
+        "forecast_relevant_cash_outflow": "645.00",
+    }
+
+
+def test_monthly_performance_summary_reports_missing_source_data(
+    client: TestClient,
+):
+    response = client.get(
+        "/api/performance/monthly",
+        params={"period_start": "2026-05-20"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["performance"]["sales_ht"] == "0.00"
+    assert body["performance"]["ebe_cash"] == "0.00"
+    assert body["non_operating_cash_flow"]["total_cash_outflow"] == "0.00"
+    assert body["data_quality_notes"] == [
+        "monthly_sales_missing",
+        "cash_flow_inputs_missing",
+    ]
+
+
+def test_monthly_performance_summary_separates_vat_credit_from_cash_outflow(
+    client: TestClient,
+):
+    validated_invoice = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Equipment supplier",
+            "invoice_date": "2026-05-05",
+            "lines": [
+                {
+                    "description": "Large maintenance invoice",
+                    "category": "maintenance",
+                    "vat_rate": "20",
+                    "amount_ht": "1000.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{validated_invoice['id']}/validate")
+    client.put(
+        "/api/monthly-sales/2026-05-01",
+        json={
+            "sales_ht": "100.00",
+            "vat_collected": "20.00",
+            "sales_ttc": "120.00",
+        },
+    )
+    client.put(
+        "/api/performance/monthly-inputs/2026-05-01",
+        json={
+            "salaries": "0.00",
+            "social_charges": "0.00",
+            "investments_cash": "50.00",
+            "loan_repayments_cash": "25.00",
+        },
+    )
+
+    response = client.get(
+        "/api/performance/monthly",
+        params={"period_start": "2026-05-20"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["vat_collected"] == "20.00"
+    assert body["vat_deductible"] == "200.00"
+    assert body["non_operating_cash_flow"]["vat_payable_estimate"] == "0.00"
+    assert body["non_operating_cash_flow"]["vat_credit_estimate"] == "180.00"
+    assert body["non_operating_cash_flow"]["total_cash_outflow"] == "75.00"
+    assert (
+        body["non_operating_cash_flow"]["forecast_relevant_cash_outflow"]
+        == "25.00"
+    )
+
+
+def test_performance_category_mapping_documents_all_known_categories():
+    assert set(PERFORMANCE_CATEGORY_BUCKETS) == ALLOWED_CATEGORY_CODES

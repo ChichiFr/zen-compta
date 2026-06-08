@@ -4,6 +4,8 @@ import {
   DashboardSummary,
   Invoice,
   InvoiceLineInput,
+  MonthlyCashFlowInputs,
+  MonthlyPerformanceSummary,
   archiveInvoice,
   createInvoice,
   dashboardCsvExportUrl,
@@ -12,8 +14,10 @@ import {
   getImportedInvoicesToReview,
   getInvoices,
   getMonthlySales,
+  getMonthlyPerformanceSummary,
   invoiceCsvExportUrl,
   invoiceXlsxExportUrl,
+  saveMonthlyCashFlowInputs,
   saveMonthlySales,
   updateInvoice,
   uploadDocumentImport,
@@ -79,6 +83,9 @@ function formatMoney(value: string) {
 function messageText(value: string | null) {
   if (value === "saved") {
     return "Ventes mensuelles enregistrees.";
+  }
+  if (value === "cash_flow_inputs_saved") {
+    return "Flux mensuels enregistres.";
   }
   if (value === "invoice_created") {
     return "Facture creee. Elle doit encore etre validee humainement.";
@@ -181,6 +188,26 @@ async function saveSalesAction(formData: FormData) {
 
   const message = result.error ? result.error : "saved";
   redirectToDashboard(period, openingCash, message);
+}
+
+async function saveCashFlowInputsAction(formData: FormData) {
+  "use server";
+
+  const period = String(formData.get("period") ?? currentMonth());
+  const openingCash = String(formData.get("opening_cash") ?? "0");
+  const periodStart = monthToDate(period);
+  const result = await saveMonthlyCashFlowInputs(periodStart, {
+    salaries: String(formData.get("salaries") ?? "0"),
+    social_charges: String(formData.get("social_charges") ?? "0"),
+    investments_cash: String(formData.get("investments_cash") ?? "0"),
+    loan_repayments_cash: String(formData.get("loan_repayments_cash") ?? "0"),
+  });
+
+  redirectToDashboard(
+    period,
+    openingCash,
+    result.error ? result.error : "cash_flow_inputs_saved",
+  );
 }
 
 async function createInvoiceAction(formData: FormData) {
@@ -376,6 +403,221 @@ function DetailTable({ summary }: { summary: DashboardSummary }) {
         ))}
       </dl>
     </section>
+  );
+}
+
+function noteLabel(note: string) {
+  if (note === "monthly_sales_missing") {
+    return "CA mensuel non saisi: la performance utilise 0 EUR de ventes.";
+  }
+  if (note === "cash_flow_inputs_missing") {
+    return "Flux salaires, charges, investissements et emprunts non saisis: ils valent 0 EUR.";
+  }
+  return note;
+}
+
+function PerformanceAndCashFlowTables({
+  summary,
+}: {
+  summary: MonthlyPerformanceSummary;
+}) {
+  const performanceRows: Array<[string, string, boolean]> = [
+    ["CA HT", formatMoney(summary.performance.sales_ht), false],
+    [
+      "Matieres premieres HT",
+      formatMoney(summary.performance.raw_materials_ht),
+      false,
+    ],
+    ["Emballages HT", formatMoney(summary.performance.packaging_ht), false],
+    ["Salaires", formatMoney(summary.performance.salaries), false],
+    ["Charges sociales", formatMoney(summary.performance.social_charges), false],
+    [
+      "Achats externes, charges et impots HT",
+      formatMoney(summary.performance.external_purchases_taxes_ht),
+      false,
+    ],
+    ["EBE Cash", formatMoney(summary.performance.ebe_cash), true],
+  ];
+  const cashFlowRows: Array<[string, string, boolean]> = [
+    [
+      "Investissements cash",
+      formatMoney(summary.non_operating_cash_flow.investments_cash),
+      false,
+    ],
+    [
+      "Remboursements emprunts cash",
+      formatMoney(summary.non_operating_cash_flow.loan_repayments_cash),
+      false,
+    ],
+    [
+      "TVA a payer estimee",
+      formatMoney(summary.non_operating_cash_flow.vat_payable_estimate),
+      false,
+    ],
+    [
+      "Credit TVA estime",
+      formatMoney(summary.non_operating_cash_flow.vat_credit_estimate),
+      false,
+    ],
+    [
+      "Total hors exploitation",
+      formatMoney(summary.non_operating_cash_flow.total_cash_outflow),
+      true,
+    ],
+  ];
+
+  return (
+    <section className="grid gap-6 lg:grid-cols-2">
+      <article className="rounded-md border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <h2 className="text-base font-semibold">Performance</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Mesure si l exploitation gagne de l argent, en HT pour les achats.
+          </p>
+        </div>
+        <dl className="divide-y divide-slate-200">
+          {performanceRows.map(([label, value, isTotal]) => (
+            <div
+              className={`grid grid-cols-[minmax(0,1fr)_150px] gap-4 px-5 py-3 ${
+                isTotal ? "bg-slate-50 font-semibold" : ""
+              }`}
+              key={label}
+            >
+              <dt className="text-sm text-slate-600">{label}</dt>
+              <dd className="text-right text-sm font-semibold text-slate-950">
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </article>
+
+      <article className="rounded-md border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <h2 className="text-base font-semibold">
+            Flux exceptionnels / hors exploitation
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Isole ce qui consomme le cash hors exploitation courante.
+          </p>
+        </div>
+        <dl className="divide-y divide-slate-200">
+          {cashFlowRows.map(([label, value, isTotal]) => (
+            <div
+              className={`grid grid-cols-[minmax(0,1fr)_150px] gap-4 px-5 py-3 ${
+                isTotal ? "bg-slate-50 font-semibold" : ""
+              }`}
+              key={label}
+            >
+              <dt className="text-sm text-slate-600">{label}</dt>
+              <dd className="text-right text-sm font-semibold text-slate-950">
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <div className="border-t border-slate-200 px-5 py-3 text-sm text-slate-500">
+          Hors investissements pour future prevision:{" "}
+          <span className="font-semibold text-slate-950">
+            {formatMoney(
+              summary.non_operating_cash_flow.forecast_relevant_cash_outflow,
+            )}
+          </span>
+        </div>
+      </article>
+
+      {summary.data_quality_notes.length > 0 ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 lg:col-span-2">
+          {summary.data_quality_notes.map((note) => (
+            <p key={note}>{noteLabel(note)}</p>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function CashFlowInputsForm({
+  period,
+  openingCash,
+  inputs,
+}: {
+  period: string;
+  openingCash: string;
+  inputs: MonthlyCashFlowInputs;
+}) {
+  return (
+    <form
+      action={saveCashFlowInputsAction}
+      className="rounded-md border border-slate-200 bg-white p-5"
+    >
+      <div className="flex flex-col justify-between gap-2 border-b border-slate-200 pb-4 sm:flex-row">
+        <div>
+          <h2 className="text-base font-semibold">Flux mensuels</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Saisie des montants non presents dans les factures validees.
+          </p>
+        </div>
+        <span className="text-sm font-medium text-slate-500">{period}</span>
+      </div>
+      <input name="period" type="hidden" value={period} />
+      <input name="opening_cash" type="hidden" value={openingCash} />
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="text-sm font-medium text-slate-600">
+          Salaires
+          <input
+            className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
+            defaultValue={inputs.salaries}
+            min="0"
+            name="salaries"
+            required
+            step="0.01"
+            type="number"
+          />
+        </label>
+        <label className="text-sm font-medium text-slate-600">
+          Charges sociales
+          <input
+            className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
+            defaultValue={inputs.social_charges}
+            min="0"
+            name="social_charges"
+            required
+            step="0.01"
+            type="number"
+          />
+        </label>
+        <label className="text-sm font-medium text-slate-600">
+          Investissements cash
+          <input
+            className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
+            defaultValue={inputs.investments_cash}
+            min="0"
+            name="investments_cash"
+            required
+            step="0.01"
+            type="number"
+          />
+        </label>
+        <label className="text-sm font-medium text-slate-600">
+          Remboursements emprunts
+          <input
+            className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
+            defaultValue={inputs.loan_repayments_cash}
+            min="0"
+            name="loan_repayments_cash"
+            required
+            step="0.01"
+            type="number"
+          />
+        </label>
+      </div>
+      <div className="mt-5 flex justify-end">
+        <button className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white">
+          Enregistrer les flux
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -854,12 +1096,14 @@ export default async function Home({
   const xlsxExportUrl = dashboardXlsxExportUrl(periodStart, openingCash);
   const invoiceCsvUrl = invoiceCsvExportUrl(periodStart);
   const invoiceXlsxUrl = invoiceXlsxExportUrl(periodStart);
-  const [dashboard, monthlySales, invoices, reviewInboxInvoices] = await Promise.all([
-    getDashboardSummary(periodStart, openingCash),
-    getMonthlySales(periodStart),
-    getInvoices(periodStart),
-    getImportedInvoicesToReview(),
-  ]);
+  const [dashboard, performance, monthlySales, invoices, reviewInboxInvoices] =
+    await Promise.all([
+      getDashboardSummary(periodStart, openingCash),
+      getMonthlyPerformanceSummary(periodStart),
+      getMonthlySales(periodStart),
+      getInvoices(periodStart),
+      getImportedInvoicesToReview(),
+    ]);
 
   return (
     <main className="min-h-screen bg-[#f6f7f4] text-slate-950">
@@ -935,6 +1179,21 @@ export default async function Home({
         ) : (
           <section className="rounded-md border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
             Impossible de charger le dashboard: {dashboard.error}.
+          </section>
+        )}
+
+        {performance.data ? (
+          <>
+            <PerformanceAndCashFlowTables summary={performance.data} />
+            <CashFlowInputsForm
+              inputs={performance.data.inputs}
+              period={period}
+              openingCash={openingCash}
+            />
+          </>
+        ) : (
+          <section className="rounded-md border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+            Impossible de charger la performance: {performance.error}.
           </section>
         )}
 
