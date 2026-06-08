@@ -25,6 +25,14 @@ import {
   INVOICE_CATEGORIES,
   invoiceCategoryLabel,
 } from "@/lib/invoiceCategories";
+import {
+  invoiceReviewMessages,
+  invoiceReviewSummary,
+} from "@/lib/invoiceReview";
+import type {
+  InvoiceReviewKind,
+  InvoiceReviewMessage,
+} from "@/lib/invoiceReview";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +45,11 @@ type Metric = {
 };
 
 type InvoiceLineFormResult = InvoiceLineInput | "incomplete" | null;
+type StatusMessageKind = "success" | "review" | "technical";
+type StatusMessage = {
+  kind: StatusMessageKind;
+  text: string;
+};
 
 const INVOICE_FORM_LINE_NUMBERS = [1, 2, 3, 4, 5] as const;
 
@@ -76,57 +89,90 @@ function formatMoney(value: string) {
   }).format(amount);
 }
 
-function messageText(value: string | null) {
+function statusMessage(value: string | null): StatusMessage | null {
   if (value === "saved") {
-    return "Ventes mensuelles enregistrees.";
+    return { kind: "success", text: "Ventes mensuelles enregistrees." };
   }
   if (value === "invoice_created") {
-    return "Facture creee. Elle doit encore etre validee humainement.";
+    return {
+      kind: "review",
+      text: "Facture creee. Elle doit encore etre validee humainement.",
+    };
   }
   if (value === "document_uploaded") {
-    return "Document importe. Une facture a verifier a ete creee.";
+    return {
+      kind: "review",
+      text: "Document importe. Une facture a verifier a ete creee.",
+    };
   }
   if (value === "document_uploaded_to_inbox") {
-    return "Document importe. La facture est dans Factures importees a traiter.";
+    return {
+      kind: "review",
+      text: "Document importe. La facture est dans Factures importees a traiter.",
+    };
   }
   if (value === "document_extracted") {
-    return "Document importe et pre-rempli par IA. Verifie la facture avant validation.";
+    return {
+      kind: "review",
+      text: "Document importe et pre-rempli par IA. Verifie la facture avant validation.",
+    };
   }
   if (value === "document_extraction_failed") {
-    return "Document importe, mais l extraction IA a echoue. Complete la facture manuellement.";
+    return {
+      kind: "technical",
+      text: "Document importe, mais l extraction IA a echoue. Complete la facture manuellement.",
+    };
   }
   if (value === "document_upload_missing") {
-    return "Choisis un PDF ou une image de facture a importer.";
+    return {
+      kind: "review",
+      text: "Choisis un PDF ou une image de facture a importer.",
+    };
   }
   if (value === "document_upload_failed") {
-    return "Import impossible. Verifie le fichier, puis reessaie.";
+    return {
+      kind: "technical",
+      text: "Import impossible. Verifie le fichier, puis reessaie.",
+    };
   }
   if (value === "invoice_validated") {
-    return "Facture validee.";
+    return { kind: "success", text: "Facture validee." };
   }
   if (value === "invoice_updated") {
-    return "Facture modifiee.";
+    return { kind: "success", text: "Facture modifiee." };
   }
   if (value === "invoice_archived") {
-    return "Facture archivee.";
+    return { kind: "success", text: "Facture archivee." };
   }
   if (value === "invoice_validation_failed") {
-    return "La facture ne peut pas encore etre validee.";
+    return { kind: "review", text: "La facture ne peut pas encore etre validee." };
   }
   if (value === "invoice_missing_line") {
-    return "Ajoute au moins une ligne de facture.";
+    return { kind: "review", text: "Ajoute au moins une ligne de facture." };
   }
   if (value === "invoice_incomplete_line") {
-    return "Complete chaque ligne commencee: description, TVA et montant HT.";
+    return {
+      kind: "review",
+      text: "Complete chaque ligne commencee: description, TVA et montant HT.",
+    };
   }
   if (value === "invalid_sales") {
-    return "Les ventes sont incoherentes: HT + TVA doit egaler TTC.";
+    return {
+      kind: "review",
+      text: "Les ventes sont incoherentes: HT + TVA doit egaler TTC.",
+    };
   }
   if (value === "backend_unavailable") {
-    return "Backend indisponible. Lance FastAPI puis recharge la page.";
+    return {
+      kind: "technical",
+      text: "Backend indisponible. Lance FastAPI puis recharge la page.",
+    };
   }
   if (value?.startsWith("api_error_")) {
-    return "L API a refuse la demande. Verifie les montants saisis.";
+    return {
+      kind: "technical",
+      text: "L API a refuse la demande. Verifie les montants saisis.",
+    };
   }
   return null;
 }
@@ -392,6 +438,119 @@ function statusLabel(status: Invoice["status"]) {
   return "Brouillon";
 }
 
+const STATUS_MESSAGE_STYLES: Record<StatusMessageKind, string> = {
+  success: "border-emerald-200 bg-emerald-50 text-emerald-900",
+  review: "border-amber-200 bg-amber-50 text-amber-950",
+  technical: "border-rose-200 bg-rose-50 text-rose-900",
+};
+
+function StatusMessageBanner({ message }: { message: StatusMessage }) {
+  return (
+    <p
+      className={`rounded-md border px-4 py-3 text-sm font-medium ${STATUS_MESSAGE_STYLES[message.kind]}`}
+    >
+      {message.text}
+    </p>
+  );
+}
+
+const REVIEW_LABELS: Record<InvoiceReviewKind, string> = {
+  important: "Alerte importante",
+  ai: "Commentaire IA",
+  technical: "Erreur technique",
+  review: "A verifier",
+};
+
+const REVIEW_STYLES: Record<InvoiceReviewKind, string> = {
+  important: "border-amber-200 bg-amber-50 text-amber-950",
+  ai: "border-sky-200 bg-sky-50 text-sky-950",
+  technical: "border-rose-200 bg-rose-50 text-rose-900",
+  review: "border-slate-200 bg-slate-50 text-slate-800",
+};
+
+function groupedReviewMessages(messages: InvoiceReviewMessage[]) {
+  return (["important", "review", "ai", "technical"] as const).map((kind) => ({
+    kind,
+    messages: messages.filter((message) => message.kind === kind),
+  }));
+}
+
+function InvoiceReviewPanel({ invoice }: { invoice: Invoice }) {
+  const summary = invoiceReviewSummary(invoice.lines);
+  if (
+    invoice.source !== "ai_upload" ||
+    invoice.status === "validated" ||
+    summary.messages.length === 0
+  ) {
+    return null;
+  }
+
+  const items = [
+    { kind: "important" as const, count: summary.important },
+    { kind: "review" as const, count: summary.review },
+    { kind: "ai" as const, count: summary.ai },
+    { kind: "technical" as const, count: summary.technical },
+  ].filter((item) => item.count > 0);
+
+  return (
+    <div className="mt-4 grid gap-2 md:grid-cols-3">
+      {items.map((item) => (
+        <div
+          className={`rounded-md border px-3 py-2 ${REVIEW_STYLES[item.kind]}`}
+          key={item.kind}
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide">
+            {REVIEW_LABELS[item.kind]}
+          </p>
+          <p className="mt-1 text-lg font-semibold">{item.count}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LineReviewMessages({ reason }: { reason: string | null }) {
+  const messages = invoiceReviewMessages(reason);
+  if (messages.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      {groupedReviewMessages(messages).map((group) =>
+        group.messages.length > 0 ? (
+          <div
+            className={`rounded-md border px-2.5 py-2 ${REVIEW_STYLES[group.kind]}`}
+            key={group.kind}
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wide">
+              {REVIEW_LABELS[group.kind]}
+            </p>
+            <ul className="mt-1 space-y-1 text-xs leading-5">
+              {group.messages.map((message, index) => (
+                <li key={`${message.kind}-${message.code}-${index}`}>
+                  {message.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null,
+      )}
+    </div>
+  );
+}
+
+function hasVisibleValidationBlocker(invoice: Invoice) {
+  return (
+    !invoice.supplier_name.trim() ||
+    !invoice.invoice_date ||
+    invoice.lines.length === 0 ||
+    invoice.lines.some(
+      (line) => invoiceReviewMessages(line.needs_review_reason).length > 0,
+    )
+  );
+}
+
 function CategorySelect({
   name,
   defaultValue,
@@ -560,7 +719,10 @@ function InvoiceEditForm({
   openingCash: string;
 }) {
   return (
-    <details className="mt-4 rounded-md border border-slate-200 bg-slate-50">
+    <details
+      className="mt-4 rounded-md border border-slate-200 bg-slate-50"
+      open={invoice.source === "ai_upload" && invoice.status !== "validated"}
+    >
       <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-900">
         Modifier cette facture
       </summary>
@@ -725,6 +887,11 @@ function InvoiceList({
                   <p className="mt-1 font-semibold">
                     {statusLabel(invoice.status)}
                   </p>
+                  {invoice.source === "ai_upload" && invoice.status !== "validated" ? (
+                    <p className="mt-1 text-xs font-semibold text-amber-700">
+                      Hors exports
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <p className="text-sm text-slate-500">HT</p>
@@ -748,6 +915,10 @@ function InvoiceList({
                   {invoice.status === "validated" ? (
                     <span className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
                       Validee
+                    </span>
+                  ) : hasVisibleValidationBlocker(invoice) ? (
+                    <span className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+                      A corriger
                     </span>
                   ) : (
                     <form action={validateInvoiceAction}>
@@ -779,6 +950,7 @@ function InvoiceList({
                   ) : null}
                 </div>
               </div>
+              <InvoiceReviewPanel invoice={invoice} />
               <div className="mt-4 overflow-x-auto rounded-md border border-slate-200">
                 <div className="min-w-[720px]">
                   <div className="grid grid-cols-[minmax(0,1fr)_180px_90px_110px_110px_110px] bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -799,11 +971,7 @@ function InvoiceList({
                           <p className="font-medium text-slate-900">
                             {line.description}
                           </p>
-                          {line.needs_review_reason ? (
-                            <p className="mt-1 text-xs font-medium text-amber-700">
-                              Revue: {line.needs_review_reason}
-                            </p>
-                          ) : null}
+                          <LineReviewMessages reason={line.needs_review_reason} />
                         </div>
                         <span className="text-slate-600">
                           {invoiceCategoryLabel(line.category)}
@@ -849,7 +1017,7 @@ export default async function Home({
   const period = firstParam(params, "period", currentMonth());
   const openingCash = firstParam(params, "openingCash", "0");
   const periodStart = monthToDate(period);
-  const message = messageText(firstParam(params, "message", ""));
+  const message = statusMessage(firstParam(params, "message", ""));
   const csvExportUrl = dashboardCsvExportUrl(periodStart, openingCash);
   const xlsxExportUrl = dashboardXlsxExportUrl(periodStart, openingCash);
   const invoiceCsvUrl = invoiceCsvExportUrl(periodStart);
@@ -907,11 +1075,7 @@ export default async function Home({
           </div>
         </header>
 
-        {message ? (
-          <p className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
-            {message}
-          </p>
-        ) : null}
+        {message ? <StatusMessageBanner message={message} /> : null}
 
         {dashboard.data ? (
           <>
