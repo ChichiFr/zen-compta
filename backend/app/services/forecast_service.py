@@ -120,6 +120,7 @@ class ForecastService:
         ending_cash_estimate = money(
             assumptions.opening_cash
             + ebe_forecast
+            - vat_payable_estimate
             - assumptions.loan_repayments_cash
         )
 

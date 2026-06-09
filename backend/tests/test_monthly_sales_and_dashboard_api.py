@@ -582,7 +582,7 @@ def test_monthly_forecast_returns_normal_and_downside_scenarios(
     assert scenarios["normal"]["vat_collected_estimate"] == "1200.00"
     assert scenarios["normal"]["vat_payable_estimate"] == "800.00"
     assert scenarios["normal"]["vat_credit_estimate"] == "0.00"
-    assert scenarios["normal"]["ending_cash_estimate"] == "4220.00"
+    assert scenarios["normal"]["ending_cash_estimate"] == "3420.00"
     assert scenarios["normal"]["risk_level"] == "ok"
     assert scenarios["sales_minus_10"]["forecast_sales_ht"] == "10800.00"
     assert scenarios["sales_minus_10"]["vat_payable_estimate"] == "680.00"
