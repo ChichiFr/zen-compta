@@ -21,6 +21,8 @@ private_uploads/
 media/
 documents/
 invoices/
+!frontend/app/invoices/
+!frontend/app/invoices/**
 exports/
 tmp/
 temp/
