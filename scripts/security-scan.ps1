@@ -11,14 +11,19 @@ function Convert-ToRepositoryPath {
 
 function Test-AllowlistedPath {
     param([string]$Path)
-    if ($Path.StartsWith("frontend/app/invoices/")) {
-        return $true
-    }
     return $Path -in @(
         ".env.example",
         "frontend/.env.example",
         "frontend/package-lock.json"
     )
+}
+
+function Test-ForbiddenBusinessPath {
+    param([string]$Path)
+    if ($Path.StartsWith("frontend/app/invoices/")) {
+        return $false
+    }
+    return $Path -match '(^|/)(uploads|private_uploads|media|documents|invoices|exports|secrets|tmp|temp)/'
 }
 
 function Test-TextFile {
@@ -60,7 +65,7 @@ try {
         if (
             $path -match '(^|/)\.env($|\.)' -or
             $path -match '\.(sqlite|sqlite3|db|dump|bak|backup|pem|key|crt|log|err)$' -or
-            $path -match '(^|/)(uploads|private_uploads|media|documents|invoices|exports|secrets|tmp|temp)/'
+            (Test-ForbiddenBusinessPath $path)
         ) {
             $blockedPaths += $path
         }
