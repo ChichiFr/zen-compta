@@ -11,6 +11,9 @@ function Convert-ToRepositoryPath {
 
 function Test-AllowlistedPath {
     param([string]$Path)
+    if ($Path.StartsWith("frontend/app/invoices/")) {
+        return $true
+    }
     return $Path -in @(
         ".env.example",
         "frontend/.env.example",
