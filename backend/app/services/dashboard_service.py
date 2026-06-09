@@ -56,7 +56,7 @@ class DashboardService:
         )
         sales_ht = money(monthly_sales.sales_ht if monthly_sales else Decimal("0"))
         sales_ttc = money(monthly_sales.sales_ttc if monthly_sales else Decimal("0"))
-        vat_payable = money(vat_collected - vat_deductible)
+        vat_payable = money(max(vat_collected - vat_deductible, Decimal("0")))
         opening_cash_amount = money(opening_cash)
         estimated_cash = money(
             opening_cash_amount + sales_ttc - validated_ttc - vat_payable
