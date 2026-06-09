@@ -51,6 +51,36 @@ export type MonthlyPerformanceSummary = {
   data_quality_notes: string[];
 };
 
+export type MonthlyForecastSummary = {
+  period_start: string;
+  assumptions: {
+    opening_cash: string;
+    forecast_sales_ht: string;
+    fixed_salaries: string;
+    variable_salary_rate: string;
+    social_charge_rate: string;
+    loan_repayments_cash: string;
+    vat_collection_rate: string;
+    vat_deductible_estimate: string;
+  };
+  scenarios: Array<{
+    key: "normal" | "sales_minus_10" | "sales_minus_20";
+    label: string;
+    forecast_sales_ht: string;
+    salaries: string;
+    social_charges: string;
+    operating_costs_ht: string;
+    ebe_forecast: string;
+    vat_collected_estimate: string;
+    vat_payable_estimate: string;
+    vat_credit_estimate: string;
+    loan_repayments_cash: string;
+    ending_cash_estimate: string;
+    risk_level: "ok" | "warning" | "critical";
+  }>;
+  data_quality_notes: string[];
+};
+
 export type MonthlySales = {
   id: string;
   period_start: string;
@@ -192,6 +222,26 @@ export async function getMonthlyPerformanceSummary(periodStart: string) {
   const params = new URLSearchParams({ period_start: periodStart });
   return fetchJson<MonthlyPerformanceSummary>(
     `/performance/monthly?${params.toString()}`,
+  );
+}
+
+export async function getMonthlyForecastSummary(
+  periodStart: string,
+  payload: {
+    opening_cash: string;
+    forecast_sales_ht: string;
+    fixed_salaries: string;
+    variable_salary_rate: string;
+    social_charge_rate: string;
+    loan_repayments_cash: string;
+  },
+) {
+  const params = new URLSearchParams({
+    period_start: periodStart,
+    ...payload,
+  });
+  return fetchJson<MonthlyForecastSummary>(
+    `/forecast/monthly?${params.toString()}`,
   );
 }
 

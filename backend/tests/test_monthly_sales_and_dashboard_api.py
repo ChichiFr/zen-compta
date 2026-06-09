@@ -492,3 +492,150 @@ def test_monthly_performance_summary_separates_vat_credit_from_cash_outflow(
 
 def test_performance_category_mapping_documents_all_known_categories():
     assert set(PERFORMANCE_CATEGORY_BUCKETS) == ALLOWED_CATEGORY_CODES
+
+
+def test_monthly_forecast_returns_normal_and_downside_scenarios(
+    client: TestClient,
+):
+    validated_invoice = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-05-05",
+            "lines": [
+                {
+                    "description": "Matieres premieres",
+                    "category": "raw_materials_5_5",
+                    "vat_rate": "20",
+                    "amount_ht": "2000.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{validated_invoice['id']}/validate")
+    client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Draft supplier",
+            "invoice_date": "2026-05-06",
+            "lines": [
+                {
+                    "description": "Brouillon ignore",
+                    "category": "maintenance",
+                    "vat_rate": "20",
+                    "amount_ht": "9999.00",
+                }
+            ],
+        },
+    )
+    client.put(
+        "/api/monthly-sales/2026-05-01",
+        json={
+            "sales_ht": "10000.00",
+            "vat_collected": "1000.00",
+            "sales_ttc": "11000.00",
+        },
+    )
+    client.put(
+        "/api/performance/monthly-inputs/2026-05-01",
+        json={
+            "salaries": "0.00",
+            "social_charges": "0.00",
+            "investments_cash": "0.00",
+            "loan_repayments_cash": "0.00",
+        },
+    )
+
+    response = client.get(
+        "/api/forecast/monthly",
+        params={
+            "period_start": "2026-05-20",
+            "opening_cash": "1000.00",
+            "forecast_sales_ht": "12000.00",
+            "fixed_salaries": "3000.00",
+            "variable_salary_rate": "10.00",
+            "social_charge_rate": "40.00",
+            "loan_repayments_cash": "500.00",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["period_start"] == "2026-05-01"
+    assert body["assumptions"] == {
+        "opening_cash": "1000.00",
+        "forecast_sales_ht": "12000.00",
+        "fixed_salaries": "3000.00",
+        "variable_salary_rate": "10.00",
+        "social_charge_rate": "40.00",
+        "loan_repayments_cash": "500.00",
+        "vat_collection_rate": "10.00",
+        "vat_deductible_estimate": "400.00",
+    }
+    scenarios = {scenario["key"]: scenario for scenario in body["scenarios"]}
+    assert set(scenarios) == {"normal", "sales_minus_10", "sales_minus_20"}
+    assert scenarios["normal"]["forecast_sales_ht"] == "12000.00"
+    assert scenarios["normal"]["operating_costs_ht"] == "2400.00"
+    assert scenarios["normal"]["salaries"] == "4200.00"
+    assert scenarios["normal"]["social_charges"] == "1680.00"
+    assert scenarios["normal"]["ebe_forecast"] == "3720.00"
+    assert scenarios["normal"]["vat_collected_estimate"] == "1200.00"
+    assert scenarios["normal"]["vat_payable_estimate"] == "800.00"
+    assert scenarios["normal"]["vat_credit_estimate"] == "0.00"
+    assert scenarios["normal"]["ending_cash_estimate"] == "4220.00"
+    assert scenarios["normal"]["risk_level"] == "ok"
+    assert scenarios["sales_minus_10"]["forecast_sales_ht"] == "10800.00"
+    assert scenarios["sales_minus_10"]["vat_payable_estimate"] == "680.00"
+    assert scenarios["sales_minus_20"]["forecast_sales_ht"] == "9600.00"
+    assert scenarios["sales_minus_20"]["loan_repayments_cash"] == "500.00"
+    assert scenarios["sales_minus_20"]["vat_payable_estimate"] == "560.00"
+    assert body["data_quality_notes"] == []
+
+
+def test_monthly_forecast_keeps_vat_credit_out_of_cash_outflow(
+    client: TestClient,
+):
+    validated_invoice = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Maintenance supplier",
+            "invoice_date": "2026-05-05",
+            "lines": [
+                {
+                    "description": "Grosse facture",
+                    "category": "maintenance",
+                    "vat_rate": "20",
+                    "amount_ht": "1000.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{validated_invoice['id']}/validate")
+    client.put(
+        "/api/monthly-sales/2026-05-01",
+        json={
+            "sales_ht": "100.00",
+            "vat_collected": "20.00",
+            "sales_ttc": "120.00",
+        },
+    )
+
+    response = client.get(
+        "/api/forecast/monthly",
+        params={
+            "period_start": "2026-05-20",
+            "opening_cash": "1000.00",
+            "forecast_sales_ht": "0.00",
+            "fixed_salaries": "0.00",
+            "variable_salary_rate": "0.00",
+            "social_charge_rate": "35.00",
+            "loan_repayments_cash": "250.00",
+        },
+    )
+
+    assert response.status_code == 200
+    normal = response.json()["scenarios"][0]
+    assert response.json()["assumptions"]["vat_collection_rate"] == "20.00"
+    assert response.json()["assumptions"]["vat_deductible_estimate"] == "200.00"
+    assert normal["vat_credit_estimate"] == "200.00"
+    assert normal["ending_cash_estimate"] == "750.00"

@@ -3,6 +3,7 @@ from fastapi import Depends, FastAPI
 from app.api.routes import (
     dashboard,
     document_imports,
+    forecast,
     health,
     invoices,
     monthly_sales,
@@ -32,6 +33,11 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         performance.router,
+        prefix="/api",
+        dependencies=[Depends(require_internal_api_token)],
+    )
+    app.include_router(
+        forecast.router,
         prefix="/api",
         dependencies=[Depends(require_internal_api_token)],
     )
