@@ -49,10 +49,7 @@ export default async function InvoicesPage({
     >
       {message ? <StatusMessageBanner message={message} /> : null}
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <DocumentUploadForm openingCash={openingCash} period={period} />
-        <InvoiceForm openingCash={openingCash} period={period} />
-      </section>
+      <DocumentUploadForm openingCash={openingCash} period={period} />
 
       <ApiErrorNotice
         error={reviewInboxInvoices.error}
@@ -67,6 +64,9 @@ export default async function InvoicesPage({
         period={period}
         title="Factures importees a traiter"
       />
+
+      <InvoiceForm openingCash={openingCash} period={period} />
+
       <InvoiceList
         csvExportUrl={invoiceCsvExportUrl(periodStart)}
         emptyText="Aucune facture pour ce mois."

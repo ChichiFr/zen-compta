@@ -1,12 +1,12 @@
 import {
-  getMonthlyForecastSummary,
   getMonthlyPerformanceSummary,
+  getRunwayForecastSummary,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/session";
 import {
   AppShell,
-  ForecastForm,
-  ForecastResults,
+  RunwayForecastForm,
+  RunwayForecastResults,
   StatusMessageBanner,
 } from "@/app/ui";
 import {
@@ -19,6 +19,21 @@ import {
 
 export const dynamic = "force-dynamic";
 
+function hasDataGap(notes: string[] | undefined, note: string) {
+  return notes?.includes(note) ?? true;
+}
+
+function defaultFromData(
+  value: string | undefined,
+  fallback: string,
+  useFallback: boolean,
+) {
+  if (useFallback || value === undefined) {
+    return fallback;
+  }
+  return value;
+}
+
 export default async function ForecastPage({
   searchParams,
 }: {
@@ -28,29 +43,67 @@ export default async function ForecastPage({
 
   const params = await searchParams;
   const period = firstParam(params, "period", currentMonth());
-  const openingCash = firstParam(params, "openingCash", "0");
+  const openingCash = firstParam(params, "openingCash", "15000");
   const periodStart = monthToDate(period);
   const message = statusMessage(firstParam(params, "message", ""));
   const performance = await getMonthlyPerformanceSummary(periodStart);
-  const forecast = await getMonthlyForecastSummary(periodStart, {
-    opening_cash: openingCash,
-    forecast_sales_ht: firstParam(
+  const notes = performance.data?.data_quality_notes;
+  const salesMissing = hasDataGap(notes, "monthly_sales_missing");
+  const cashFlowInputsMissing = hasDataGap(notes, "cash_flow_inputs_missing");
+  const forecastParams = {
+    months: firstParam(params, "months", "3"),
+    referenceSalesHt: firstParam(
       params,
-      "forecastSalesHt",
-      performance.data?.performance.sales_ht ?? "0",
+      "referenceSalesHt",
+      defaultFromData(
+        performance.data?.performance.sales_ht,
+        "45000",
+        salesMissing,
+      ),
     ),
-    fixed_salaries: firstParam(
+    customSalesDropRate: firstParam(params, "customSalesDropRate", "20"),
+    fixedSalaries: firstParam(
       params,
       "fixedSalaries",
-      performance.data?.inputs.salaries ?? "0",
+      defaultFromData(
+        performance.data?.inputs.salaries,
+        "12000",
+        cashFlowInputsMissing,
+      ),
     ),
-    variable_salary_rate: firstParam(params, "variableSalaryRate", "0"),
-    social_charge_rate: firstParam(params, "socialChargeRate", "35"),
-    loan_repayments_cash: firstParam(
+    variableSalaryRate: firstParam(params, "variableSalaryRate", "0"),
+    socialChargeRate: firstParam(params, "socialChargeRate", "35"),
+    loanRepaymentsCash: firstParam(
       params,
       "loanRepaymentsCash",
-      performance.data?.inputs.loan_repayments_cash ?? "0",
+      defaultFromData(
+        performance.data?.inputs.loan_repayments_cash,
+        "2500",
+        cashFlowInputsMissing,
+      ),
     ),
+    monthlyVatPayableEstimate: firstParam(
+      params,
+      "monthlyVatPayableEstimate",
+      defaultFromData(
+        performance.data?.non_operating_cash_flow.vat_payable_estimate,
+        "3000",
+        salesMissing,
+      ),
+    ),
+    minimumCashThreshold: firstParam(params, "minimumCashThreshold", "0"),
+  };
+  const forecast = await getRunwayForecastSummary(periodStart, {
+    opening_cash: openingCash,
+    months: forecastParams.months,
+    reference_sales_ht: forecastParams.referenceSalesHt,
+    custom_sales_drop_rate: forecastParams.customSalesDropRate,
+    fixed_salaries: forecastParams.fixedSalaries,
+    variable_salary_rate: forecastParams.variableSalaryRate,
+    social_charge_rate: forecastParams.socialChargeRate,
+    loan_repayments_cash: forecastParams.loanRepaymentsCash,
+    monthly_vat_payable_estimate: forecastParams.monthlyVatPayableEstimate,
+    minimum_cash_threshold: forecastParams.minimumCashThreshold,
   });
 
   return (
@@ -58,17 +111,18 @@ export default async function ForecastPage({
       active="forecast"
       openingCash={openingCash}
       period={period}
+      preservedQueryParams={forecastParams}
       title="Prevision cash"
     >
       {message ? <StatusMessageBanner message={message} /> : null}
 
       {forecast.data ? (
         <>
-          <ForecastForm
+          <RunwayForecastForm
             assumptions={forecast.data.assumptions}
             period={period}
           />
-          <ForecastResults summary={forecast.data} />
+          <RunwayForecastResults summary={forecast.data} />
         </>
       ) : (
         <section className="rounded-md border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">

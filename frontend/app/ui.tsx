@@ -9,6 +9,7 @@ import {
   MonthlyForecastSummary,
   MonthlyPerformanceSummary,
   MonthlySales,
+  RunwayForecastSummary,
 } from "@/lib/api";
 import {
   INVOICE_CATEGORIES,
@@ -41,6 +42,7 @@ type AppShellProps = {
   children: ReactNode;
   openingCash: string;
   period: string;
+  preservedQueryParams?: Record<string, string>;
   title: string;
 };
 
@@ -56,8 +58,12 @@ export function AppShell({
   children,
   openingCash,
   period,
+  preservedQueryParams = {},
   title,
 }: AppShellProps) {
+  const preservedQuery = new URLSearchParams(preservedQueryParams).toString();
+  const preservedSuffix = preservedQuery ? `&${preservedQuery}` : "";
+
   return (
     <main className="min-h-screen bg-[#f6f7f4] text-slate-950">
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 py-6 sm:px-6 lg:px-8">
@@ -91,6 +97,9 @@ export function AppShell({
                     type="number"
                   />
                 </label>
+                {Object.entries(preservedQueryParams).map(([key, value]) => (
+                  <input key={key} name={key} type="hidden" value={value} />
+                ))}
                 <button className="h-10 self-end rounded-md bg-slate-950 px-4 text-sm font-semibold text-white">
                   Actualiser
                 </button>
@@ -106,8 +115,8 @@ export function AppShell({
             {NAV_ITEMS.map((item) => {
               const href =
                 item.href === "/"
-                  ? `/?period=${period}&openingCash=${openingCash}`
-                  : `${item.href}?period=${period}&openingCash=${openingCash}`;
+                  ? `/?period=${period}&openingCash=${openingCash}${preservedSuffix}`
+                  : `${item.href}?period=${period}&openingCash=${openingCash}${preservedSuffix}`;
               return (
                 <Link
                   className={`rounded-md border px-3 py-2 text-sm font-semibold ${
@@ -391,6 +400,9 @@ function noteLabel(note: string) {
   if (note === "cash_flow_inputs_missing") {
     return "Flux salaires, charges, investissements et emprunts non saisis: ils valent 0 EUR.";
   }
+  if (note === "forecast_operating_costs_ratio_missing") {
+    return "Charges fournisseurs insuffisantes: la prevision ne peut pas encore estimer les couts d exploitation variables.";
+  }
   return note;
 }
 
@@ -514,11 +526,13 @@ export function DataStatus({
 function MoneyInput({
   defaultValue,
   label,
+  max,
   name,
   required = true,
 }: {
   defaultValue: string;
   label: string;
+  max?: string;
   name: string;
   required?: boolean;
 }) {
@@ -528,6 +542,7 @@ function MoneyInput({
       <input
         className="mt-1 block h-10 w-full rounded-md border border-slate-300 px-3 text-slate-950"
         defaultValue={defaultValue}
+        max={max}
         min="0"
         name={name}
         required={required}
@@ -556,19 +571,26 @@ export function DocumentUploadForm({
   period: string;
 }) {
   return (
-    <form action={uploadDocumentAction} className="rounded-md border border-slate-200 bg-white p-5">
-      <h2 className="text-base font-semibold">Importer une facture</h2>
-      <p className="mt-1 text-sm text-slate-500">
-        PDF ou image. L IA pre-remplit, puis une revue humaine valide.
-      </p>
+    <form
+      action={uploadDocumentAction}
+      className="rounded-md border border-slate-200 bg-white px-5 py-4"
+    >
       <input name="return_to" type="hidden" value="/invoices" />
       <input name="period" type="hidden" value={period} />
       <input name="opening_cash" type="hidden" value={openingCash} />
-      <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end">
-        <DocumentFileInput />
-        <button className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-base font-semibold">Importer une facture</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            PDF ou image. Une facture a la fois.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <DocumentFileInput />
+          <button className="h-10 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white">
           Importer
-        </button>
+          </button>
+        </div>
       </div>
     </form>
   );
@@ -582,15 +604,19 @@ export function InvoiceForm({
   period: string;
 }) {
   return (
-    <form action={createInvoiceAction} className="rounded-md border border-slate-200 bg-white p-5">
-      <h2 className="text-base font-semibold">Creation manuelle</h2>
-      <input name="return_to" type="hidden" value="/invoices" />
-      <input name="period" type="hidden" value={period} />
-      <input name="opening_cash" type="hidden" value={openingCash} />
-      <InvoiceHeaderFields />
-      <InvoiceLineFields />
-      <FormFooter label="Creer la facture" />
-    </form>
+    <details className="rounded-md border border-slate-200 bg-white">
+      <summary className="cursor-pointer px-5 py-4 text-base font-semibold">
+        Creer une facture manuellement
+      </summary>
+      <form action={createInvoiceAction} className="border-t border-slate-200 p-5">
+        <input name="return_to" type="hidden" value="/invoices" />
+        <input name="period" type="hidden" value={period} />
+        <input name="opening_cash" type="hidden" value={openingCash} />
+        <InvoiceHeaderFields />
+        <InvoiceLineFields collapseOptional />
+        <FormFooter label="Creer la facture" />
+      </form>
+    </details>
   );
 }
 
@@ -630,48 +656,68 @@ function InvoiceHeaderFields({ invoice }: { invoice?: Invoice }) {
   );
 }
 
-function InvoiceLineFields({ invoice }: { invoice?: Invoice }) {
+function InvoiceLineFields({
+  collapseOptional = false,
+  invoice,
+}: {
+  collapseOptional?: boolean;
+  invoice?: Invoice;
+}) {
+  const renderLine = (lineNumber: (typeof INVOICE_FORM_LINE_NUMBERS)[number]) => {
+    const line = invoice?.lines[lineNumber - 1];
+    return (
+      <div
+        className="mt-4 grid gap-4 border-t border-slate-200 pt-4 md:grid-cols-[minmax(0,1fr)_220px_140px_140px]"
+        key={lineNumber}
+      >
+        <label className="text-sm font-medium text-slate-600">
+          Ligne {lineNumber}
+          <input
+            className="mt-1 block h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-slate-950"
+            defaultValue={line?.description ?? ""}
+            name={`line_${lineNumber}_description`}
+            required={lineNumber === 1}
+            type="text"
+          />
+        </label>
+        <label className="text-sm font-medium text-slate-600">
+          Categorie
+          <CategorySelect
+            defaultValue={line?.category}
+            name={`line_${lineNumber}_category`}
+          />
+        </label>
+        <MoneyInput
+          defaultValue={line?.vat_rate ?? (lineNumber === 1 ? "20" : "")}
+          label="TVA %"
+          name={`line_${lineNumber}_vat_rate`}
+          required={lineNumber === 1}
+        />
+        <MoneyInput
+          defaultValue={line?.amount_ht ?? ""}
+          label="Montant HT"
+          name={`line_${lineNumber}_amount_ht`}
+          required={lineNumber === 1}
+        />
+      </div>
+    );
+  };
+
+  if (!collapseOptional) {
+    return <>{INVOICE_FORM_LINE_NUMBERS.map(renderLine)}</>;
+  }
+
   return (
     <>
-      {INVOICE_FORM_LINE_NUMBERS.map((lineNumber) => {
-        const line = invoice?.lines[lineNumber - 1];
-        return (
-          <div
-            className="mt-4 grid gap-4 border-t border-slate-200 pt-4 md:grid-cols-[minmax(0,1fr)_220px_140px_140px]"
-            key={lineNumber}
-          >
-            <label className="text-sm font-medium text-slate-600">
-              Ligne {lineNumber}
-              <input
-                className="mt-1 block h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-slate-950"
-                defaultValue={line?.description ?? ""}
-                name={`line_${lineNumber}_description`}
-                required={lineNumber === 1}
-                type="text"
-              />
-            </label>
-            <label className="text-sm font-medium text-slate-600">
-              Categorie
-              <CategorySelect
-                defaultValue={line?.category}
-                name={`line_${lineNumber}_category`}
-              />
-            </label>
-            <MoneyInput
-              defaultValue={line?.vat_rate ?? (lineNumber === 1 ? "20" : "")}
-              label="TVA %"
-              name={`line_${lineNumber}_vat_rate`}
-              required={lineNumber === 1}
-            />
-            <MoneyInput
-              defaultValue={line?.amount_ht ?? ""}
-              label="Montant HT"
-              name={`line_${lineNumber}_amount_ht`}
-              required={lineNumber === 1}
-            />
-          </div>
-        );
-      })}
+      {renderLine(1)}
+      <details className="mt-4 rounded-md border border-slate-200 bg-slate-50">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">
+          Ajouter des lignes supplementaires
+        </summary>
+        <div className="border-t border-slate-200 px-4 pb-4">
+          {INVOICE_FORM_LINE_NUMBERS.slice(1).map(renderLine)}
+        </div>
+      </details>
     </>
   );
 }
@@ -1032,101 +1078,221 @@ function hasVisibleValidationBlocker(invoice: Invoice) {
   );
 }
 
-export function ForecastForm({
+export function RunwayForecastForm({
   assumptions,
   period,
 }: {
-  assumptions: MonthlyForecastSummary["assumptions"];
+  assumptions: RunwayForecastSummary["assumptions"];
   period: string;
 }) {
   return (
     <form className="rounded-md border border-slate-200 bg-white p-5" method="get">
-      <h2 className="text-base font-semibold">Hypotheses de prevision</h2>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold">Hypotheses de prevision</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Simulation basee sur vos hypotheses. L historique reel pourra etre
+            utilise automatiquement quand il y aura assez de donnees.
+          </p>
+        </div>
+      </div>
       <input name="period" type="hidden" value={period} />
       <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <MoneyInput defaultValue={assumptions.opening_cash} label="Cash de depart" name="openingCash" />
-        <MoneyInput defaultValue={assumptions.forecast_sales_ht} label="CA prevu restant HT" name="forecastSalesHt" />
+        <label className="text-sm font-medium text-slate-600">
+          Duree
+          <select
+            className="mt-1 block h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-slate-950"
+            defaultValue={assumptions.months}
+            name="months"
+          >
+            <option value="3">3 mois</option>
+            <option value="6">6 mois</option>
+            <option value="12">12 mois</option>
+          </select>
+        </label>
+        <MoneyInput defaultValue={assumptions.reference_sales_ht} label="CA mensuel de reference HT" name="referenceSalesHt" />
+        <MoneyInput
+          defaultValue={assumptions.custom_sales_drop_rate}
+          label="Baisse CA personnalisee %"
+          max="100"
+          name="customSalesDropRate"
+        />
         <MoneyInput defaultValue={assumptions.fixed_salaries} label="Salaires fixes" name="fixedSalaries" />
         <MoneyInput defaultValue={assumptions.variable_salary_rate} label="% salaires variables" name="variableSalaryRate" />
         <MoneyInput defaultValue={assumptions.social_charge_rate} label="% charges sociales" name="socialChargeRate" />
-        <MoneyInput defaultValue={assumptions.loan_repayments_cash} label="Emprunts prevus" name="loanRepaymentsCash" />
+        <MoneyInput defaultValue={assumptions.loan_repayments_cash} label="Emprunts mensuels" name="loanRepaymentsCash" />
+        <MoneyInput
+          defaultValue={assumptions.monthly_vat_payable_estimate}
+          label="TVA estimee au CA de reference"
+          name="monthlyVatPayableEstimate"
+        />
+        <MoneyInput defaultValue={assumptions.minimum_cash_threshold} label="Seuil cash critique" name="minimumCashThreshold" />
       </div>
       <FormFooter label="Simuler" />
     </form>
   );
 }
 
-export function ForecastResults({ summary }: { summary: MonthlyForecastSummary }) {
+export function RunwayForecastResults({
+  summary,
+}: {
+  summary: RunwayForecastSummary;
+}) {
+  const selectedScenario =
+    summary.scenarios.find((scenario) => scenario.key === "custom_drop") ??
+    summary.scenarios[0];
+  const firstCritical = selectedScenario.first_critical_month
+    ? formatMonth(selectedScenario.first_critical_month)
+    : "Aucun mois critique";
+  const selectedRunway = runwayLabel(
+    selectedScenario.runway_months,
+    Boolean(selectedScenario.first_critical_month),
+  );
+
   return (
-    <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <section className="grid gap-6">
       {summary.data_quality_notes.length > 0 ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 lg:col-span-2">
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           {summary.data_quality_notes.map((note) => (
             <p key={note}>{noteLabel(note)}</p>
           ))}
         </div>
       ) : null}
+
+      <article className="rounded-md border border-slate-200 bg-white p-5">
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Reponse principale
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+          Avec une baisse de CA de {selectedScenario.sales_drop_rate}%, vous
+          tenez {selectedRunway}.
+        </h2>
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <ForecastMetric label="Premier mois critique" value={firstCritical} plain />
+          <ForecastMetric label="Cash fin periode" value={selectedScenario.ending_cash_estimate} />
+          <ForecastMetric label="Risque" value={riskLabel(selectedScenario.risk_level)} plain />
+        </div>
+      </article>
+
       <article className="rounded-md border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-5 py-4">
-          <h2 className="text-base font-semibold">Scenarios</h2>
+          <h2 className="text-base font-semibold">Scenarios compares</h2>
         </div>
-        <div className="divide-y divide-slate-200">
+        <div className="grid gap-0 md:grid-cols-2 xl:grid-cols-5">
           {summary.scenarios.map((scenario) => (
             <div
-              className="grid gap-4 px-5 py-4 md:grid-cols-[150px_repeat(5,minmax(0,1fr))]"
+              className="border-b border-slate-200 px-5 py-4 md:border-r xl:border-b-0"
               key={scenario.key}
             >
-              <div>
-                <p className="font-semibold">{scenario.label}</p>
-                <p className={`mt-1 text-sm font-semibold ${riskClass(scenario.risk_level)}`}>
-                  {riskLabel(scenario.risk_level)}
-                </p>
-              </div>
-              <ForecastMetric label="CA HT" value={scenario.forecast_sales_ht} />
-              <ForecastMetric label="EBE prevu" value={scenario.ebe_forecast} />
-              <ForecastMetric label="TVA a payer" value={scenario.vat_payable_estimate} />
-              <ForecastMetric label="Credit TVA" value={scenario.vat_credit_estimate} />
-              <ForecastMetric label="Cash fin mois" value={scenario.ending_cash_estimate} />
+              <p className="font-semibold">{scenario.label}</p>
+              <p className={`mt-1 text-sm font-semibold ${riskClass(scenario.risk_level)}`}>
+                {riskLabel(scenario.risk_level)}
+              </p>
+              <dl className="mt-4 space-y-3 text-sm">
+                <ForecastAssumption
+                  label="Mois tenables"
+                  plain
+                  value={runwayLabel(
+                    scenario.runway_months,
+                    Boolean(scenario.first_critical_month),
+                  )}
+                />
+                <ForecastAssumption label="Mois critique" value={scenario.first_critical_month ? formatMonth(scenario.first_critical_month) : "Aucun"} plain />
+                <ForecastAssumption label="Cash final" value={scenario.ending_cash_estimate} />
+              </dl>
             </div>
           ))}
         </div>
       </article>
+
       <article className="rounded-md border border-slate-200 bg-white p-5">
-        <h2 className="text-base font-semibold">Hypotheses reprises</h2>
-        <dl className="mt-4 space-y-3 text-sm">
-          <ForecastAssumption label="Cash depart" value={summary.assumptions.opening_cash} />
-          <ForecastAssumption label="Salaires fixes" value={summary.assumptions.fixed_salaries} />
-          <ForecastAssumption label="% salaires variables" value={`${summary.assumptions.variable_salary_rate}%`} />
-          <ForecastAssumption label="% charges sociales" value={`${summary.assumptions.social_charge_rate}%`} />
-          <ForecastAssumption label="Emprunts" value={summary.assumptions.loan_repayments_cash} />
-          <ForecastAssumption label="% TVA collectee" value={`${summary.assumptions.vat_collection_rate}%`} />
-          <ForecastAssumption label="TVA deductible" value={summary.assumptions.vat_deductible_estimate} />
-        </dl>
+        <h2 className="text-base font-semibold">Detail mois par mois</h2>
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-3 py-3">Mois</th>
+                <th className="px-3 py-3">CA</th>
+                <th className="px-3 py-3">EBE</th>
+                <th className="px-3 py-3">TVA</th>
+                <th className="px-3 py-3">Emprunts</th>
+                <th className="px-3 py-3">Cash final</th>
+                <th className="px-3 py-3">Risque</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {selectedScenario.months.map((month) => (
+                <tr key={month.month}>
+                  <td className="px-3 py-3 font-semibold">{formatMonth(month.month)}</td>
+                  <td className="px-3 py-3">{formatMoney(month.forecast_sales_ht)}</td>
+                  <td className="px-3 py-3">{formatMoney(month.ebe_forecast)}</td>
+                  <td className="px-3 py-3">{formatMoney(month.vat_payable_estimate)}</td>
+                  <td className="px-3 py-3">{formatMoney(month.loan_repayments_cash)}</td>
+                  <td className="px-3 py-3 font-semibold">{formatMoney(month.ending_cash_estimate)}</td>
+                  <td className={`px-3 py-3 font-semibold ${riskClass(month.risk_level)}`}>
+                    {riskLabel(month.risk_level)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </article>
     </section>
   );
 }
 
-function ForecastMetric({ label, value }: { label: string; value: string }) {
+function ForecastMetric({
+  label,
+  plain = false,
+  value,
+}: {
+  label: string;
+  plain?: boolean;
+  value: string;
+}) {
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>
-      <p className="mt-1 font-semibold">{formatMoney(value)}</p>
+      <p className="mt-1 font-semibold">{plain ? value : formatMoney(value)}</p>
     </div>
   );
 }
 
-function ForecastAssumption({ label, value }: { label: string; value: string }) {
+function ForecastAssumption({
+  label,
+  plain = false,
+  value,
+}: {
+  label: string;
+  plain?: boolean;
+  value: string;
+}) {
   return (
     <div className="flex justify-between gap-4">
       <dt className="text-slate-500">{label}</dt>
       <dd className="font-semibold text-slate-950">
-        {value.includes("%") ? value : formatMoney(value)}
+        {plain || value.includes("%") ? value : formatMoney(value)}
       </dd>
     </div>
   );
+}
+
+function formatMonth(value: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${value}T00:00:00`));
+}
+
+function runwayLabel(months: number, hasCriticalMonth: boolean) {
+  if (!hasCriticalMonth) {
+    return `au moins ${months} mois`;
+  }
+  return `${months} mois`;
 }
 
 function riskLabel(risk: "ok" | "warning" | "critical") {

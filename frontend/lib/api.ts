@@ -81,6 +81,50 @@ export type MonthlyForecastSummary = {
   data_quality_notes: string[];
 };
 
+export type RunwayForecastSummary = {
+  period_start: string;
+  assumptions: {
+    opening_cash: string;
+    months: 3 | 6 | 12;
+    reference_sales_ht: string;
+    custom_sales_drop_rate: string;
+    fixed_salaries: string;
+    variable_salary_rate: string;
+    social_charge_rate: string;
+    loan_repayments_cash: string;
+    monthly_vat_payable_estimate: string;
+    minimum_cash_threshold: string;
+  };
+  scenarios: Array<{
+    key:
+      | "normal"
+      | "custom_drop"
+      | "sales_minus_10"
+      | "sales_minus_20"
+      | "sales_minus_30";
+    label: string;
+    sales_drop_rate: string;
+    runway_months: number;
+    first_critical_month: string | null;
+    ending_cash_estimate: string;
+    risk_level: "ok" | "warning" | "critical";
+    months: Array<{
+      month: string;
+      opening_cash: string;
+      forecast_sales_ht: string;
+      salaries: string;
+      social_charges: string;
+      operating_costs_ht: string;
+      ebe_forecast: string;
+      vat_payable_estimate: string;
+      loan_repayments_cash: string;
+      ending_cash_estimate: string;
+      risk_level: "ok" | "warning" | "critical";
+    }>;
+  }>;
+  data_quality_notes: string[];
+};
+
 export type MonthlySales = {
   id: string;
   period_start: string;
@@ -242,6 +286,30 @@ export async function getMonthlyForecastSummary(
   });
   return fetchJson<MonthlyForecastSummary>(
     `/forecast/monthly?${params.toString()}`,
+  );
+}
+
+export async function getRunwayForecastSummary(
+  periodStart: string,
+  payload: {
+    opening_cash: string;
+    months: string;
+    reference_sales_ht: string;
+    custom_sales_drop_rate: string;
+    fixed_salaries: string;
+    variable_salary_rate: string;
+    social_charge_rate: string;
+    loan_repayments_cash: string;
+    monthly_vat_payable_estimate: string;
+    minimum_cash_threshold: string;
+  },
+) {
+  const params = new URLSearchParams({
+    period_start: periodStart,
+    ...payload,
+  });
+  return fetchJson<RunwayForecastSummary>(
+    `/forecast/runway?${params.toString()}`,
   );
 }
 
