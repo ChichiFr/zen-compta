@@ -2,8 +2,8 @@
 
 import { redirect } from "next/navigation";
 
+import type { InvoiceLineInput } from "@/types/api";
 import {
-  InvoiceLineInput,
   archiveInvoice,
   createInvoice,
   saveMonthlyCashFlowInputs,

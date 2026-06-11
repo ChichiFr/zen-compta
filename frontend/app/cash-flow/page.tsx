@@ -6,16 +6,14 @@ import {
   getMonthlySales,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/session";
-import {
-  ApiErrorNotice,
-  AppShell,
-  CashFlowInputsForm,
-  DataStatus,
-  DetailTable,
-  PerformanceAndCashFlowTables,
-  SalesForm,
-  StatusMessageBanner,
-} from "@/app/ui";
+import { CashFlowInputsForm } from "@/components/cash-flow/CashFlowInputsForm";
+import { DataStatus } from "@/components/cash-flow/DataStatus";
+import { SalesForm } from "@/components/cash-flow/SalesForm";
+import { DetailTable } from "@/components/dashboard/DetailTable";
+import { PerformanceAndCashFlowTables } from "@/components/dashboard/PerformanceAndCashFlowTables";
+import { ApiErrorNotice } from "@/components/layout/ApiErrorNotice";
+import { AppShell } from "@/components/layout/AppShell";
+import { StatusMessageBanner } from "@/components/layout/StatusMessageBanner";
 import {
   SearchParams,
   currentMonth,

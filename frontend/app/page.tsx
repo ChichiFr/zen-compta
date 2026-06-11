@@ -4,14 +4,12 @@ import {
   getMonthlyPerformanceSummary,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/session";
-import {
-  AppShell,
-  DashboardActions,
-  DashboardHealth,
-  DashboardMetrics,
-  PerformanceAndCashFlowTables,
-  StatusMessageBanner,
-} from "@/app/ui";
+import { DashboardActions } from "@/components/dashboard/DashboardActions";
+import { DashboardHealth } from "@/components/dashboard/DashboardHealth";
+import { DashboardMetrics } from "@/components/dashboard/DashboardMetrics";
+import { PerformanceAndCashFlowTables } from "@/components/dashboard/PerformanceAndCashFlowTables";
+import { AppShell } from "@/components/layout/AppShell";
+import { StatusMessageBanner } from "@/components/layout/StatusMessageBanner";
 import {
   SearchParams,
   currentMonth,

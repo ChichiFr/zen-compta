@@ -23,6 +23,8 @@ documents/
 invoices/
 !frontend/app/invoices/
 !frontend/app/invoices/**
+!frontend/components/invoices/
+!frontend/components/invoices/**
 exports/
 tmp/
 temp/
