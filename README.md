@@ -121,6 +121,14 @@ After installation, `git push` runs:
 
 If tests, build, linting, audit, or security checks fail, the push is blocked.
 
+## Private Render Demo
+
+For a private online demo, follow:
+
+```text
+docs/deploy-render.md
+```
+
 ## Local Status
 
 The repo contains the MVP foundation: monthly sales, manual invoices with

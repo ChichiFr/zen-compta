@@ -28,7 +28,7 @@ class Invoice(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     supplier_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    invoice_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    invoice_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     invoice_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[InvoiceStatus] = mapped_column(
         Enum(
@@ -38,6 +38,7 @@ class Invoice(Base):
         ),
         nullable=False,
         default=InvoiceStatus.DRAFT,
+        index=True,
     )
     source: Mapped[InvoiceSource] = mapped_column(
         Enum(

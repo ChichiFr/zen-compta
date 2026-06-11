@@ -20,13 +20,10 @@ function Test-AllowlistedPath {
 
 function Test-ForbiddenBusinessPath {
     param([string]$Path)
-    if ($Path.StartsWith("frontend/app/invoices/")) {
-        return $false
+    if ($Path -match '^invoices/') {
+        return $true
     }
-    if ($Path.StartsWith("frontend/components/invoices/")) {
-        return $false
-    }
-    return $Path -match '(^|/)(uploads|private_uploads|media|documents|invoices|exports|secrets|tmp|temp)/'
+    return $Path -match '(^|/)(uploads|private_uploads|media|documents|exports|secrets|tmp|temp)/'
 }
 
 function Test-TextFile {
