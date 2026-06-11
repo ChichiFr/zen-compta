@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
@@ -17,13 +18,28 @@ from app.schemas.forecast import (
 )
 from app.services.invoice_calculations import money
 from app.services.performance_service import PerformanceService
-from app.services.periods import month_start
+from app.services.periods import month_start, shift_months
 
 SCENARIO_MULTIPLIERS: tuple[tuple[ScenarioKey, str, Decimal], ...] = (
     ("normal", "CA prevu", Decimal("1")),
     ("sales_minus_10", "CA -10%", Decimal("0.9")),
     ("sales_minus_20", "CA -20%", Decimal("0.8")),
 )
+
+REFERENCE_HISTORY_MONTHS = 3
+
+
+@dataclass(frozen=True)
+class ReferenceHistory:
+    """Ratios derived from the trailing reference months.
+
+    Ratios are kept at full precision; only displayed amounts are rounded.
+    """
+
+    operating_costs_ratio: Decimal
+    vat_collection_rate: Decimal
+    monthly_vat_deductible: Decimal
+    months_with_activity: int
 
 
 class ForecastService:
@@ -41,24 +57,14 @@ class ForecastService:
         social_charge_rate: Decimal,
         loan_repayments_cash: Decimal,
     ) -> MonthlyForecastSummary:
-        performance_summary = PerformanceService(self.db).monthly_summary(period_start)
-        performance = performance_summary.performance
-        vat_deductible_estimate = performance_summary.vat_deductible
-        vat_collection_rate = Decimal("0")
-        if performance.sales_ht > 0:
-            vat_collection_rate = (
-                performance_summary.vat_collected / performance.sales_ht
-            )
-        operating_costs_ratio = Decimal("0")
-        if performance.sales_ht > 0:
-            operating_costs_ratio = (
-                (
-                    performance.raw_materials_ht
-                    + performance.packaging_ht
-                    + performance.external_purchases_taxes_ht
-                )
-                / performance.sales_ht
-            )
+        normalized_period = month_start(period_start)
+        performance_summary = PerformanceService(self.db).monthly_summary(
+            normalized_period
+        )
+        history = self._reference_history(normalized_period)
+        notes = list(performance_summary.data_quality_notes)
+        if history.months_with_activity < REFERENCE_HISTORY_MONTHS:
+            notes.append("forecast_reference_partial_history")
 
         assumptions = MonthlyForecastAssumptions(
             opening_cash=money(opening_cash),
@@ -67,15 +73,18 @@ class ForecastService:
             variable_salary_rate=money(variable_salary_rate),
             social_charge_rate=money(social_charge_rate),
             loan_repayments_cash=money(loan_repayments_cash),
-            vat_collection_rate=money(vat_collection_rate * Decimal("100")),
-            vat_deductible_estimate=money(vat_deductible_estimate),
+            vat_collection_rate=money(
+                history.vat_collection_rate * Decimal("100")
+            ),
+            vat_deductible_estimate=money(history.monthly_vat_deductible),
         )
         scenarios = [
             self._scenario(
                 key=key,
                 label=label,
                 sales_ht=money(assumptions.forecast_sales_ht * multiplier),
-                operating_costs_ratio=operating_costs_ratio,
+                operating_costs_ratio=history.operating_costs_ratio,
+                vat_collection_rate=history.vat_collection_rate,
                 assumptions=assumptions,
             )
             for key, label, multiplier in SCENARIO_MULTIPLIERS
@@ -85,7 +94,7 @@ class ForecastService:
             period_start=performance_summary.period_start,
             assumptions=assumptions,
             scenarios=scenarios,
-            data_quality_notes=performance_summary.data_quality_notes,
+            data_quality_notes=notes,
         )
 
     def runway_forecast(
@@ -107,8 +116,11 @@ class ForecastService:
         performance_summary = PerformanceService(self.db).monthly_summary(
             normalized_period
         )
-        operating_costs_ratio = self._operating_costs_ratio(performance_summary)
+        history = self._reference_history(normalized_period)
+        operating_costs_ratio = history.operating_costs_ratio
         notes = list(performance_summary.data_quality_notes)
+        if history.months_with_activity < REFERENCE_HISTORY_MONTHS:
+            notes.append("forecast_reference_partial_history")
         if operating_costs_ratio == 0:
             notes.append("forecast_operating_costs_ratio_missing")
 
@@ -155,6 +167,46 @@ class ForecastService:
             data_quality_notes=notes,
         )
 
+    def _reference_history(self, period_start: date) -> ReferenceHistory:
+        performance = PerformanceService(self.db)
+        total_sales_ht = Decimal("0")
+        total_operating_costs_ht = Decimal("0")
+        total_vat_collected = Decimal("0")
+        total_vat_deductible = Decimal("0")
+        months_with_activity = 0
+
+        for offset in range(REFERENCE_HISTORY_MONTHS):
+            month = shift_months(period_start, -offset)
+            summary = performance.monthly_summary(month)
+            sales_ht = summary.performance.sales_ht
+            operating_costs_ht = (
+                summary.performance.raw_materials_ht
+                + summary.performance.packaging_ht
+                + summary.performance.external_purchases_taxes_ht
+            )
+            if sales_ht > 0 or operating_costs_ht > 0 or summary.vat_deductible > 0:
+                months_with_activity += 1
+            total_sales_ht += sales_ht
+            total_operating_costs_ht += operating_costs_ht
+            total_vat_collected += summary.vat_collected
+            total_vat_deductible += summary.vat_deductible
+
+        operating_costs_ratio = Decimal("0")
+        vat_collection_rate = Decimal("0")
+        if total_sales_ht > 0:
+            operating_costs_ratio = total_operating_costs_ht / total_sales_ht
+            vat_collection_rate = total_vat_collected / total_sales_ht
+        monthly_vat_deductible = Decimal("0")
+        if months_with_activity > 0:
+            monthly_vat_deductible = total_vat_deductible / months_with_activity
+
+        return ReferenceHistory(
+            operating_costs_ratio=operating_costs_ratio,
+            vat_collection_rate=vat_collection_rate,
+            monthly_vat_deductible=monthly_vat_deductible,
+            months_with_activity=months_with_activity,
+        )
+
     def _scenario(
         self,
         *,
@@ -162,6 +214,7 @@ class ForecastService:
         label: str,
         sales_ht: Decimal,
         operating_costs_ratio: Decimal,
+        vat_collection_rate: Decimal,
         assumptions: MonthlyForecastAssumptions,
     ) -> MonthlyForecastScenario:
         operating_costs_ht = money(sales_ht * operating_costs_ratio)
@@ -175,9 +228,7 @@ class ForecastService:
         ebe_forecast = money(
             sales_ht - operating_costs_ht - salaries - social_charges
         )
-        vat_collected_estimate = money(
-            sales_ht * assumptions.vat_collection_rate / Decimal("100")
-        )
+        vat_collected_estimate = money(sales_ht * vat_collection_rate)
         vat_payable_estimate = money(
             max(
                 vat_collected_estimate - assumptions.vat_deductible_estimate,
@@ -231,7 +282,7 @@ class ForecastService:
             else None
         )
         for month_index in range(assumptions.months):
-            month = self._add_months(period_start, month_index)
+            month = shift_months(period_start, month_index)
             opening_cash = cash
             sales_multiplier = Decimal("1") - sales_drop_rate / Decimal("100")
             forecast_sales_ht = money(
@@ -328,16 +379,6 @@ class ForecastService:
             / assumptions.reference_sales_ht
         )
 
-    def _operating_costs_ratio(self, performance_summary) -> Decimal:
-        performance = performance_summary.performance
-        if performance.sales_ht <= 0:
-            return Decimal("0")
-        return (
-            performance.raw_materials_ht
-            + performance.packaging_ht
-            + performance.external_purchases_taxes_ht
-        ) / performance.sales_ht
-
     def _risk_level(
         self,
         ending_cash: Decimal,
@@ -349,12 +390,6 @@ class ForecastService:
         if ending_cash < minimum_cash_threshold + Decimal("3000"):
             return "warning"
         return "ok"
-
-    def _add_months(self, value: date, months: int) -> date:
-        zero_based_month = value.month - 1 + months
-        year = value.year + zero_based_month // 12
-        month = zero_based_month % 12 + 1
-        return date(year, month, 1)
 
     def _month_difference(self, start: date, end: date) -> int:
         return (end.year - start.year) * 12 + (end.month - start.month)

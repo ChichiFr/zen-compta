@@ -11,6 +11,7 @@ export type DashboardSummary = {
   opening_cash: string;
   sales_ht: string;
   sales_ttc: string;
+  monthly_outflows: string;
   estimated_cash: string;
   cash_is_bank_connected: boolean;
 };

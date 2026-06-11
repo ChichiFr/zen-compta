@@ -17,5 +17,6 @@ class DashboardSummary(BaseModel):
     opening_cash: Decimal
     sales_ht: Decimal
     sales_ttc: Decimal
+    monthly_outflows: Decimal
     estimated_cash: Decimal
     cash_is_bank_connected: bool = False

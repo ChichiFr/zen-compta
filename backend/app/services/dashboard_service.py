@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Invoice, InvoiceStatus, MonthlySales
+from app.models import Invoice, InvoiceStatus, MonthlyCashFlowInputs, MonthlySales
 from app.schemas.dashboard import DashboardSummary
 from app.services.invoice_calculations import money
 from app.services.periods import month_start, next_month_start
@@ -47,6 +47,11 @@ class DashboardService:
         monthly_sales = self.db.scalar(
             select(MonthlySales).where(MonthlySales.period_start == start)
         )
+        cash_flow_inputs = self.db.scalar(
+            select(MonthlyCashFlowInputs).where(
+                MonthlyCashFlowInputs.period_start == start
+            )
+        )
 
         validated_ht = money(invoice_totals[0])
         vat_deductible = money(invoice_totals[1])
@@ -58,8 +63,22 @@ class DashboardService:
         sales_ttc = money(monthly_sales.sales_ttc if monthly_sales else Decimal("0"))
         vat_payable = money(max(vat_collected - vat_deductible, Decimal("0")))
         opening_cash_amount = money(opening_cash)
+        monthly_outflows = money(
+            (
+                cash_flow_inputs.salaries
+                + cash_flow_inputs.social_charges
+                + cash_flow_inputs.investments_cash
+                + cash_flow_inputs.loan_repayments_cash
+            )
+            if cash_flow_inputs
+            else Decimal("0")
+        )
         estimated_cash = money(
-            opening_cash_amount + sales_ttc - validated_ttc - vat_payable
+            opening_cash_amount
+            + sales_ttc
+            - validated_ttc
+            - vat_payable
+            - monthly_outflows
         )
 
         return DashboardSummary(
@@ -75,6 +94,7 @@ class DashboardService:
             opening_cash=opening_cash_amount,
             sales_ht=sales_ht,
             sales_ttc=sales_ttc,
+            monthly_outflows=monthly_outflows,
             estimated_cash=estimated_cash,
         )
 
@@ -106,6 +126,7 @@ class DashboardService:
             ("validated_invoices_ttc", summary.validated_invoices_ttc),
             ("vat_payable_estimate", summary.vat_payable_estimate),
             ("opening_cash", summary.opening_cash),
+            ("monthly_outflows", summary.monthly_outflows),
             ("estimated_cash", summary.estimated_cash),
             ("invoices_to_review_count", summary.invoices_to_review_count),
             ("cash_is_bank_connected", summary.cash_is_bank_connected),

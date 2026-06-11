@@ -589,7 +589,7 @@ def test_monthly_forecast_returns_normal_and_downside_scenarios(
     assert scenarios["sales_minus_20"]["forecast_sales_ht"] == "9600.00"
     assert scenarios["sales_minus_20"]["loan_repayments_cash"] == "500.00"
     assert scenarios["sales_minus_20"]["vat_payable_estimate"] == "560.00"
-    assert body["data_quality_notes"] == []
+    assert body["data_quality_notes"] == ["forecast_reference_partial_history"]
 
 
 def test_monthly_forecast_keeps_vat_credit_out_of_cash_outflow(
@@ -806,3 +806,204 @@ def test_runway_forecast_rejects_period_too_late_for_projection(
 
     assert response.status_code == 422
     assert response.json()["detail"] == "period_start_too_late_for_runway_forecast"
+
+
+def test_dashboard_estimated_cash_subtracts_monthly_cash_flow_inputs(
+    client: TestClient,
+):
+    validated_invoice = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-05-05",
+            "lines": [
+                {
+                    "description": "Achats marchandises",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{validated_invoice['id']}/validate")
+    client.put(
+        "/api/monthly-sales/2026-05-01",
+        json={
+            "sales_ht": "1000.00",
+            "vat_collected": "200.00",
+            "sales_ttc": "1200.00",
+        },
+    )
+    client.put(
+        "/api/performance/monthly-inputs/2026-05-01",
+        json={
+            "salaries": "2000.00",
+            "social_charges": "800.00",
+            "investments_cash": "300.00",
+            "loan_repayments_cash": "400.00",
+        },
+    )
+
+    response = client.get(
+        "/api/dashboard/summary",
+        params={"period_start": "2026-05-20", "opening_cash": "500.00"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["monthly_outflows"] == "3500.00"
+    assert body["estimated_cash"] == "-2100.00"
+
+
+def test_monthly_forecast_blends_three_months_of_history(client: TestClient):
+    months = [
+        ("2026-03", "10000.00", "1000.00", "11000.00", "3000.00"),
+        ("2026-04", "20000.00", "2000.00", "22000.00", "2000.00"),
+        ("2026-05", "10000.00", "1000.00", "11000.00", "3000.00"),
+    ]
+    for month, sales_ht, vat_collected, sales_ttc, invoice_ht in months:
+        invoice = client.post(
+            "/api/invoices",
+            json={
+                "supplier_name": "Metro",
+                "invoice_date": f"{month}-05",
+                "lines": [
+                    {
+                        "description": "Matieres premieres",
+                        "category": "raw_materials_5_5",
+                        "vat_rate": "20",
+                        "amount_ht": invoice_ht,
+                    }
+                ],
+            },
+        ).json()
+        client.post(f"/api/invoices/{invoice['id']}/validate")
+        client.put(
+            f"/api/monthly-sales/{month}-01",
+            json={
+                "sales_ht": sales_ht,
+                "vat_collected": vat_collected,
+                "sales_ttc": sales_ttc,
+            },
+        )
+    client.put(
+        "/api/performance/monthly-inputs/2026-05-01",
+        json={
+            "salaries": "0.00",
+            "social_charges": "0.00",
+            "investments_cash": "0.00",
+            "loan_repayments_cash": "0.00",
+        },
+    )
+
+    response = client.get(
+        "/api/forecast/monthly",
+        params={
+            "period_start": "2026-05-20",
+            "opening_cash": "1000.00",
+            "forecast_sales_ht": "12000.00",
+            "fixed_salaries": "0.00",
+            "variable_salary_rate": "0.00",
+            "social_charge_rate": "0.00",
+            "loan_repayments_cash": "0.00",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    normal = body["scenarios"][0]
+    assert normal["operating_costs_ht"] == "2400.00"
+    assert body["assumptions"]["vat_deductible_estimate"] == "533.33"
+    assert normal["vat_collected_estimate"] == "1200.00"
+    assert normal["vat_payable_estimate"] == "666.67"
+    assert body["data_quality_notes"] == []
+
+
+def test_monthly_forecast_keeps_full_precision_on_vat_rate(client: TestClient):
+    client.put(
+        "/api/monthly-sales/2026-05-01",
+        json={
+            "sales_ht": "9000.00",
+            "vat_collected": "887.00",
+            "sales_ttc": "9887.00",
+        },
+    )
+
+    response = client.get(
+        "/api/forecast/monthly",
+        params={
+            "period_start": "2026-05-20",
+            "opening_cash": "0.00",
+            "forecast_sales_ht": "9000.00",
+            "fixed_salaries": "0.00",
+            "variable_salary_rate": "0.00",
+            "social_charge_rate": "0.00",
+            "loan_repayments_cash": "0.00",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["assumptions"]["vat_collection_rate"] == "9.86"
+    normal = body["scenarios"][0]
+    assert normal["vat_collected_estimate"] == "887.00"
+    assert normal["vat_payable_estimate"] == "887.00"
+    assert normal["ending_cash_estimate"] == "8113.00"
+
+
+def test_runway_forecast_uses_three_month_costs_ratio(client: TestClient):
+    months = [
+        ("2026-03", "10000.00", "1000.00", "11000.00", "3000.00"),
+        ("2026-04", "20000.00", "2000.00", "22000.00", "2000.00"),
+        ("2026-05", "10000.00", "1000.00", "11000.00", "3000.00"),
+    ]
+    for month, sales_ht, vat_collected, sales_ttc, invoice_ht in months:
+        invoice = client.post(
+            "/api/invoices",
+            json={
+                "supplier_name": "Metro",
+                "invoice_date": f"{month}-05",
+                "lines": [
+                    {
+                        "description": "Matieres premieres",
+                        "category": "raw_materials_5_5",
+                        "vat_rate": "20",
+                        "amount_ht": invoice_ht,
+                    }
+                ],
+            },
+        ).json()
+        client.post(f"/api/invoices/{invoice['id']}/validate")
+        client.put(
+            f"/api/monthly-sales/{month}-01",
+            json={
+                "sales_ht": sales_ht,
+                "vat_collected": vat_collected,
+                "sales_ttc": sales_ttc,
+            },
+        )
+
+    response = client.get(
+        "/api/forecast/runway",
+        params={
+            "period_start": "2026-05-20",
+            "opening_cash": "10000.00",
+            "months": "3",
+            "reference_sales_ht": "10000.00",
+            "custom_sales_drop_rate": "0.00",
+            "fixed_salaries": "0.00",
+            "variable_salary_rate": "0.00",
+            "social_charge_rate": "0.00",
+            "loan_repayments_cash": "0.00",
+            "monthly_vat_payable_estimate": "0.00",
+            "minimum_cash_threshold": "0.00",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    normal = {
+        scenario["key"]: scenario for scenario in body["scenarios"]
+    }["normal"]
+    assert normal["months"][0]["operating_costs_ht"] == "2000.00"
+    assert "forecast_reference_partial_history" not in body["data_quality_notes"]
