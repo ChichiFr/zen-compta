@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+﻿from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -389,3 +389,165 @@ def test_document_import_upload_requires_internal_token(client: TestClient):
     )
 
     assert response.status_code == 401
+
+
+def test_upload_rejects_document_that_is_not_an_invoice(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class FakeExtractor:
+        def extract(self, **_: object) -> ExtractedInvoice:
+            return ExtractedInvoice(document_kind="not_an_invoice")
+
+    monkeypatch.setattr(
+        document_import_service,
+        "build_invoice_extractor",
+        lambda: FakeExtractor(),
+    )
+
+    response = client.post(
+        "/api/document-imports",
+        files={"file": ("menu.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "document_not_an_invoice"
+
+    review_response = client.get(
+        "/api/invoices",
+        params={"needs_review_without_date": "true"},
+    )
+    assert review_response.json() == []
+
+
+def test_upload_rejects_document_with_multiple_invoices(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class FakeExtractor:
+        def extract(self, **_: object) -> ExtractedInvoice:
+            return ExtractedInvoice(document_kind="multiple_invoices")
+
+    monkeypatch.setattr(
+        document_import_service,
+        "build_invoice_extractor",
+        lambda: FakeExtractor(),
+    )
+
+    response = client.post(
+        "/api/document-imports",
+        files={"file": ("lot.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "document_contains_multiple_invoices"
+
+    review_response = client.get(
+        "/api/invoices",
+        params={"needs_review_without_date": "true"},
+    )
+    assert review_response.json() == []
+
+
+def test_low_confidence_line_is_flagged_and_blocks_validation(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class FakeExtractor:
+        def extract(self, **_: object) -> ExtractedInvoice:
+            return ExtractedInvoice(
+                supplier_name="Metro",
+                invoice_date="2026-06-05",
+                invoice_number="F-2026-001",
+                lines=[
+                    ExtractedInvoiceLine(
+                        description="Ligne nette",
+                        category_code="raw_materials_5_5",
+                        vat_rate=5.5,
+                        amount_ht=100.00,
+                        confidence=0.95,
+                    ),
+                    ExtractedInvoiceLine(
+                        description="Ligne floue",
+                        category_code="raw_materials_20",
+                        vat_rate=20,
+                        amount_ht=50.00,
+                        confidence=0.4,
+                    ),
+                ],
+            )
+
+    monkeypatch.setattr(
+        document_import_service,
+        "build_invoice_extractor",
+        lambda: FakeExtractor(),
+    )
+
+    response = client.post(
+        "/api/document-imports",
+        files={"file": ("metro.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    )
+
+    assert response.status_code == 200
+    invoice = response.json()["invoice"]
+    assert invoice["lines"][0]["ai_confidence"] == "0.950"
+    assert invoice["lines"][0]["needs_review_reason"] is None
+    assert invoice["lines"][1]["ai_confidence"] == "0.400"
+    assert "ai_low_confidence" in invoice["lines"][1]["needs_review_reason"]
+
+    validation = client.post(f"/api/invoices/{invoice['id']}/validate")
+    assert validation.status_code == 422
+
+
+def test_reimported_invoice_is_flagged_as_possible_duplicate(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    first = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-06-05",
+            "invoice_number": "F-2026-042",
+            "lines": [
+                {
+                    "description": "Marchandises",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{first['id']}/validate")
+
+    class FakeExtractor:
+        def extract(self, **_: object) -> ExtractedInvoice:
+            return ExtractedInvoice(
+                supplier_name="METRO",
+                invoice_date="2026-06-05",
+                invoice_number="F-2026-042",
+                lines=[
+                    ExtractedInvoiceLine(
+                        description="Marchandises",
+                        category_code="raw_materials_20",
+                        vat_rate=20,
+                        amount_ht=100.00,
+                        confidence=0.95,
+                    )
+                ],
+            )
+
+    monkeypatch.setattr(
+        document_import_service,
+        "build_invoice_extractor",
+        lambda: FakeExtractor(),
+    )
+
+    response = client.post(
+        "/api/document-imports",
+        files={"file": ("metro-bis.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    )
+
+    assert response.status_code == 200
+    invoice = response.json()["invoice"]
+    assert "possible_duplicate_invoice" in invoice["lines"][0]["needs_review_reason"]

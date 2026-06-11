@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from datetime import date
 from pathlib import Path
+from typing import Literal
 
 from openai import OpenAI, OpenAIError
 from pydantic import BaseModel, Field
@@ -15,6 +16,14 @@ accounting tool.
 
 Read one supplier invoice document and extract structured invoice data for
 human review.
+
+First classify the document as document_kind:
+- invoice: exactly one supplier invoice.
+- multiple_invoices: the document contains more than one invoice. Do not
+  extract any lines.
+- not_an_invoice: the document is not a supplier invoice (menu, receipt for a
+  card terminal, bank statement, unrelated photo...). Do not extract any
+  lines.
 
 Rules:
 - Never validate the invoice.
@@ -29,6 +38,9 @@ Rules:
   a review reason.
 - For each line, choose exactly one category_code from the allowed list.
 - Do not invent categories. If unsure, use other and add a review reason.
+- For each line, report confidence between 0 and 1: how certain you are that
+  the description, amounts, and VAT rate were read correctly. Use low values
+  for blurry, cropped, handwritten, or ambiguous content.
 
 Allowed category_code values:
 raw_materials_5_5,
@@ -61,10 +73,14 @@ class ExtractedInvoiceLine(BaseModel):
     amount_ht: float | None = Field(default=None, ge=0)
     amount_tva: float | None = Field(default=None, ge=0)
     amount_ttc: float | None = Field(default=None, ge=0)
+    confidence: float | None = Field(default=None, ge=0, le=1)
     needs_review_reason: str | None = None
 
 
 class ExtractedInvoice(BaseModel):
+    document_kind: Literal["invoice", "multiple_invoices", "not_an_invoice"] = (
+        "invoice"
+    )
     supplier_name: str | None = None
     invoice_date: date | None = None
     invoice_number: str | None = None
@@ -101,11 +117,13 @@ class InvoiceExtractionService:
                 instructions=INVOICE_EXTRACTION_PROMPT,
                 input=[{"role": "user", "content": content}],
                 text_format=ExtractedInvoice,
-                max_output_tokens=5000,
+                max_output_tokens=16000,
             )
         except OpenAIError as exc:
             raise InvoiceExtractionError(str(exc)) from exc
 
+        if getattr(response, "status", None) == "incomplete":
+            raise InvoiceExtractionError("extraction_truncated")
         if response.output_parsed is None:
             raise InvoiceExtractionError("empty_extraction_response")
         return response.output_parsed
