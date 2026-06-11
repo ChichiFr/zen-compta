@@ -5,14 +5,12 @@ import {
   invoiceXlsxExportUrl,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/session";
-import {
-  ApiErrorNotice,
-  AppShell,
-  DocumentUploadForm,
-  InvoiceForm,
-  InvoiceList,
-  StatusMessageBanner,
-} from "@/app/ui";
+import { DocumentUploadForm } from "@/components/invoices/DocumentUploadForm";
+import { InvoiceForm } from "@/components/invoices/InvoiceForm";
+import { InvoiceList } from "@/components/invoices/InvoiceList";
+import { ApiErrorNotice } from "@/components/layout/ApiErrorNotice";
+import { AppShell } from "@/components/layout/AppShell";
+import { StatusMessageBanner } from "@/components/layout/StatusMessageBanner";
 import {
   SearchParams,
   currentMonth,

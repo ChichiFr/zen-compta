@@ -23,6 +23,9 @@ function Test-ForbiddenBusinessPath {
     if ($Path.StartsWith("frontend/app/invoices/")) {
         return $false
     }
+    if ($Path.StartsWith("frontend/components/invoices/")) {
+        return $false
+    }
     return $Path -match '(^|/)(uploads|private_uploads|media|documents|invoices|exports|secrets|tmp|temp)/'
 }
 

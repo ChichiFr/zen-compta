@@ -3,12 +3,10 @@ import {
   getRunwayForecastSummary,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/session";
-import {
-  AppShell,
-  RunwayForecastForm,
-  RunwayForecastResults,
-  StatusMessageBanner,
-} from "@/app/ui";
+import { RunwayForecastForm } from "@/components/forecast/RunwayForecastForm";
+import { RunwayForecastResults } from "@/components/forecast/RunwayForecastResults";
+import { AppShell } from "@/components/layout/AppShell";
+import { StatusMessageBanner } from "@/components/layout/StatusMessageBanner";
 import {
   SearchParams,
   currentMonth,

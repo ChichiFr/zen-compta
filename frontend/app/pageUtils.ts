@@ -31,17 +31,6 @@ export function monthToDate(value: string) {
   return `${value}-01`;
 }
 
-export function formatMoney(value: string) {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) {
-    return `${value} EUR`;
-  }
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-  }).format(amount);
-}
-
 export function statusMessage(value: string | null): StatusMessage | null {
   if (value === "saved") {
     return { kind: "success", text: "Ventes mensuelles enregistrees." };
