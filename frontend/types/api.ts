@@ -149,6 +149,7 @@ export type InvoiceLine = {
   amount_ht: string;
   amount_tva: string;
   amount_ttc: string;
+  ai_confidence: string | null;
   needs_review_reason: string | null;
 };
 

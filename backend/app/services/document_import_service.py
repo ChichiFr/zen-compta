@@ -4,6 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from fastapi import UploadFile
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -37,6 +38,8 @@ ALLOWED_CONTENT_TYPES = {
     "image/png": ".png",
     "image/webp": ".webp",
 }
+
+LOW_AI_CONFIDENCE_THRESHOLD = Decimal("0.7")
 
 
 class DocumentImportError(Exception):
@@ -97,7 +100,14 @@ class DocumentImportService:
                     filename=safe_original,
                     content_type=content_type,
                 )
+                if extracted.document_kind == "not_an_invoice":
+                    storage_path.unlink(missing_ok=True)
+                    raise DocumentImportError("document_not_an_invoice")
+                if extracted.document_kind == "multiple_invoices":
+                    storage_path.unlink(missing_ok=True)
+                    raise DocumentImportError("document_contains_multiple_invoices")
                 invoice = invoice_from_extraction(document_import.id, extracted)
+                self._mark_possible_duplicate(invoice)
                 document_import.status = DocumentImportStatus.EXTRACTION_COMPLETED
             except InvoiceExtractionError:
                 document_import.status = DocumentImportStatus.EXTRACTION_FAILED
@@ -108,6 +118,26 @@ class DocumentImportService:
         self.db.refresh(document_import)
         self.db.refresh(invoice)
         return document_import, invoice
+
+    def _mark_possible_duplicate(self, invoice: Invoice) -> None:
+        statement = select(Invoice.id).where(
+            Invoice.status != InvoiceStatus.ARCHIVED,
+            func.lower(Invoice.supplier_name) == invoice.supplier_name.lower(),
+        )
+        if invoice.invoice_number:
+            statement = statement.where(
+                Invoice.invoice_number == invoice.invoice_number
+            )
+        elif invoice.invoice_date is not None:
+            statement = statement.where(
+                Invoice.invoice_date == invoice.invoice_date,
+                Invoice.total_ttc == invoice.total_ttc,
+            )
+        else:
+            return
+
+        if self.db.scalar(statement.limit(1)) is not None:
+            mark_invoice_lines_for_review(invoice, "possible_duplicate_invoice")
 
 
 def sanitize_filename(filename: str) -> str:
@@ -142,6 +172,14 @@ def invoice_from_extraction(
         category, category_review_reason = normalize_category_code(
             extracted_line.category_code
         )
+        ai_confidence = (
+            decimal_from_extracted_number(extracted_line.confidence)
+            if extracted_line.confidence is not None
+            else None
+        )
+        confidence_review_reason = None
+        if ai_confidence is not None and ai_confidence < LOW_AI_CONFIDENCE_THRESHOLD:
+            confidence_review_reason = "ai_low_confidence"
         calculated = calculate_line(
             InvoiceLineDraft(
                 description=extracted_line.description,
@@ -154,8 +192,11 @@ def invoice_from_extraction(
                 if extracted_line.amount_ttc is not None
                 else None,
                 needs_review_reason=append_review_reason(
-                    extracted_line.needs_review_reason,
-                    category_review_reason,
+                    append_review_reason(
+                        extracted_line.needs_review_reason,
+                        category_review_reason,
+                    ),
+                    confidence_review_reason,
                 ),
             )
         )
@@ -168,6 +209,7 @@ def invoice_from_extraction(
                 amount_ht=calculated.amount_ht,
                 amount_tva=calculated.amount_tva,
                 amount_ttc=calculated.amount_ttc,
+                ai_confidence=ai_confidence,
                 needs_review_reason=calculated.needs_review_reason,
             )
         )

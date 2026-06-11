@@ -44,6 +44,10 @@ const REVIEW_REASON_COPY: Record<string, ReviewReasonCopy> = {
     kind: "ai",
     text: "Confiance IA faible sur cette ligne.",
   },
+  possible_duplicate_invoice: {
+    kind: "important",
+    text: "Une facture similaire existe deja (meme fournisseur et meme numero ou date et montant).",
+  },
 };
 
 export function invoiceReviewMessages(

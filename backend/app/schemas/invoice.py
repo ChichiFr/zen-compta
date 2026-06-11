@@ -26,6 +26,7 @@ class InvoiceLineRead(BaseModel):
     amount_ht: Decimal
     amount_tva: Decimal
     amount_ttc: Decimal
+    ai_confidence: Decimal | None
     needs_review_reason: str | None
 
     model_config = ConfigDict(from_attributes=True)

@@ -64,6 +64,15 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult
     });
 
     if (!response.ok) {
+      let detail: unknown = null;
+      try {
+        detail = ((await response.json()) as { detail?: unknown })?.detail;
+      } catch {
+        detail = null;
+      }
+      if (typeof detail === "string" && /^[a-z0-9_]+$/.test(detail)) {
+        return { data: null, error: detail };
+      }
       return { data: null, error: `api_error_${response.status}` };
     }
 

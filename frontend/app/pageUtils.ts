@@ -74,6 +74,18 @@ export function statusMessage(value: string | null): StatusMessage | null {
       text: "Import impossible. Verifie le fichier, puis reessaie.",
     };
   }
+  if (value === "document_not_an_invoice") {
+    return {
+      kind: "review",
+      text: "Ce document ne semble pas etre une facture fournisseur. Rien n a ete importe.",
+    };
+  }
+  if (value === "document_contains_multiple_invoices") {
+    return {
+      kind: "review",
+      text: "Ce document contient plusieurs factures. Importe-les une par une.",
+    };
+  }
   if (value === "invoice_validated") {
     return { kind: "success", text: "Facture validee." };
   }

@@ -139,11 +139,15 @@ export async function uploadDocumentAction(formData: FormData) {
   if (result.data?.document_import.status === "extraction_failed") {
     message = "document_extraction_failed";
   }
-  redirectBack(
-    formData,
-    result.error ? "document_upload_failed" : message,
-    "/invoices",
-  );
+  const rejectionMessages = new Set([
+    "document_not_an_invoice",
+    "document_contains_multiple_invoices",
+  ]);
+  const errorMessage =
+    result.error && rejectionMessages.has(result.error)
+      ? result.error
+      : "document_upload_failed";
+  redirectBack(formData, result.error ? errorMessage : message, "/invoices");
 }
 
 export async function validateInvoiceAction(formData: FormData) {

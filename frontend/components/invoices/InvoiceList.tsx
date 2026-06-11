@@ -198,6 +198,11 @@ function InvoiceLinesTable({ invoice }: { invoice: Invoice }) {
             >
               <div>
                 <p className="font-medium text-slate-900">{line.description}</p>
+                <ConfidenceBadge
+                  confidence={line.ai_confidence}
+                  source={invoice.source}
+                  status={invoice.status}
+                />
                 <LineReviewMessages reason={line.needs_review_reason} />
               </div>
               <span className="text-slate-600">
@@ -237,6 +242,44 @@ function InvoiceEditForm({
         <FormFooter label="Enregistrer les corrections" />
       </form>
     </details>
+  );
+}
+
+function ConfidenceBadge({
+  confidence,
+  source,
+  status,
+}: {
+  confidence: string | null;
+  source: Invoice["source"];
+  status: Invoice["status"];
+}) {
+  if (confidence === null || source !== "ai_upload" || status === "validated") {
+    return null;
+  }
+  const value = Number(confidence);
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  const percent = Math.round(value * 100);
+  const style =
+    value >= 0.9
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : value >= 0.7
+        ? "border-amber-200 bg-amber-50 text-amber-900"
+        : "border-rose-200 bg-rose-50 text-rose-900";
+  const label =
+    value >= 0.9
+      ? "Lecture IA fiable"
+      : value >= 0.7
+        ? "Lecture IA a confirmer"
+        : "Lecture IA douteuse";
+  return (
+    <span
+      className={`mt-1 inline-block rounded-md border px-2 py-0.5 text-xs font-semibold ${style}`}
+    >
+      {label} ({percent}%)
+    </span>
   );
 }
 
