@@ -639,3 +639,170 @@ def test_monthly_forecast_keeps_vat_credit_out_of_cash_outflow(
     assert response.json()["assumptions"]["vat_deductible_estimate"] == "200.00"
     assert normal["vat_credit_estimate"] == "200.00"
     assert normal["ending_cash_estimate"] == "750.00"
+
+
+def test_runway_forecast_carries_cash_across_months_and_excludes_investments(
+    client: TestClient,
+):
+    validated_invoice = client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "Metro",
+            "invoice_date": "2026-05-05",
+            "lines": [
+                {
+                    "description": "Matieres premieres",
+                    "category": "raw_materials_5_5",
+                    "vat_rate": "20",
+                    "amount_ht": "2000.00",
+                }
+            ],
+        },
+    ).json()
+    client.post(f"/api/invoices/{validated_invoice['id']}/validate")
+    client.put(
+        "/api/monthly-sales/2026-05-01",
+        json={
+            "sales_ht": "10000.00",
+            "vat_collected": "1000.00",
+            "sales_ttc": "11000.00",
+        },
+    )
+    client.put(
+        "/api/performance/monthly-inputs/2026-05-01",
+        json={
+            "salaries": "0.00",
+            "social_charges": "0.00",
+            "investments_cash": "99999.00",
+            "loan_repayments_cash": "0.00",
+        },
+    )
+
+    response = client.get(
+        "/api/forecast/runway",
+        params={
+            "period_start": "2026-05-20",
+            "opening_cash": "15000.00",
+            "months": "3",
+            "reference_sales_ht": "45000.00",
+            "custom_sales_drop_rate": "20.00",
+            "fixed_salaries": "12000.00",
+            "variable_salary_rate": "0.00",
+            "social_charge_rate": "35.00",
+            "loan_repayments_cash": "2500.00",
+            "monthly_vat_payable_estimate": "3000.00",
+            "minimum_cash_threshold": "0.00",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["assumptions"]["months"] == 3
+    scenarios = {scenario["key"]: scenario for scenario in body["scenarios"]}
+    assert set(scenarios) == {
+        "normal",
+        "custom_drop",
+        "sales_minus_10",
+        "sales_minus_20",
+        "sales_minus_30",
+    }
+    custom = scenarios["custom_drop"]
+    assert custom["sales_drop_rate"] == "20.00"
+    assert custom["runway_months"] == 3
+    assert custom["first_critical_month"] is None
+    assert custom["ending_cash_estimate"] == "38100.00"
+    assert custom["risk_level"] == "ok"
+    assert custom["months"][0]["month"] == "2026-05-01"
+    assert custom["months"][0]["forecast_sales_ht"] == "36000.00"
+    assert custom["months"][0]["operating_costs_ht"] == "7200.00"
+    assert custom["months"][0]["salaries"] == "12000.00"
+    assert custom["months"][0]["social_charges"] == "4200.00"
+    assert custom["months"][0]["ebe_forecast"] == "12600.00"
+    assert custom["months"][0]["vat_payable_estimate"] == "2400.00"
+    assert custom["months"][0]["loan_repayments_cash"] == "2500.00"
+    assert custom["months"][0]["ending_cash_estimate"] == "22700.00"
+    assert custom["months"][1]["opening_cash"] == "22700.00"
+    assert custom["months"][1]["ending_cash_estimate"] == "30400.00"
+    assert custom["months"][2]["opening_cash"] == "30400.00"
+    assert custom["ending_cash_estimate"] == "38100.00"
+    assert "investments_cash" not in custom["months"][0]
+    assert scenarios["sales_minus_30"]["months"][0]["forecast_sales_ht"] == "31500.00"
+    assert scenarios["sales_minus_30"]["months"][0]["vat_payable_estimate"] == "2100.00"
+
+
+def test_runway_forecast_detects_first_critical_month_without_history(
+    client: TestClient,
+):
+    response = client.get(
+        "/api/forecast/runway",
+        params={
+            "period_start": "2026-06-20",
+            "opening_cash": "1000.00",
+            "months": "3",
+            "reference_sales_ht": "10000.00",
+            "custom_sales_drop_rate": "20.00",
+            "fixed_salaries": "9000.00",
+            "variable_salary_rate": "0.00",
+            "social_charge_rate": "0.00",
+            "loan_repayments_cash": "3000.00",
+            "monthly_vat_payable_estimate": "0.00",
+            "minimum_cash_threshold": "0.00",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    custom = {
+        scenario["key"]: scenario for scenario in body["scenarios"]
+    }["custom_drop"]
+    assert custom["runway_months"] == 0
+    assert custom["first_critical_month"] == "2026-06-01"
+    assert custom["risk_level"] == "critical"
+    assert custom["months"][0]["ending_cash_estimate"] == "-3000.00"
+    assert "monthly_sales_missing" in body["data_quality_notes"]
+    assert "forecast_operating_costs_ratio_missing" in body["data_quality_notes"]
+
+
+def test_runway_forecast_marks_opening_cash_below_threshold_as_critical(
+    client: TestClient,
+):
+    response = client.get(
+        "/api/forecast/runway",
+        params={
+            "period_start": "2026-06-20",
+            "opening_cash": "1000.00",
+            "months": "3",
+            "reference_sales_ht": "20000.00",
+            "custom_sales_drop_rate": "0.00",
+            "fixed_salaries": "0.00",
+            "variable_salary_rate": "0.00",
+            "social_charge_rate": "0.00",
+            "loan_repayments_cash": "0.00",
+            "monthly_vat_payable_estimate": "0.00",
+            "minimum_cash_threshold": "3000.00",
+        },
+    )
+
+    assert response.status_code == 200
+    custom = {
+        scenario["key"]: scenario for scenario in response.json()["scenarios"]
+    }["custom_drop"]
+    assert custom["runway_months"] == 0
+    assert custom["first_critical_month"] == "2026-06-01"
+    assert custom["risk_level"] == "critical"
+    assert custom["months"][0]["ending_cash_estimate"] == "21000.00"
+
+
+def test_runway_forecast_rejects_period_too_late_for_projection(
+    client: TestClient,
+):
+    response = client.get(
+        "/api/forecast/runway",
+        params={
+            "period_start": "9999-12-01",
+            "months": "3",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "period_start_too_late_for_runway_forecast"
