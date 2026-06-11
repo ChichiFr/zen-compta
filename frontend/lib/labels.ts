@@ -8,6 +8,9 @@ export function noteLabel(note: string) {
   if (note === "forecast_operating_costs_ratio_missing") {
     return "Charges fournisseurs insuffisantes: la prevision ne peut pas encore estimer les couts d exploitation variables.";
   }
+  if (note === "forecast_reference_partial_history") {
+    return "Historique incomplet: la prevision se base sur moins de 3 mois de donnees.";
+  }
   return note;
 }
 

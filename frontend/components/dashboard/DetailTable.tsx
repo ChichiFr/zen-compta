@@ -10,6 +10,7 @@ export function DetailTable({ summary }: { summary: DashboardSummary }) {
     ["Factures validees HT", formatMoney(summary.validated_invoices_ht)],
     ["TVA deductible", formatMoney(summary.vat_deductible)],
     ["Factures validees TTC", formatMoney(summary.validated_invoices_ttc)],
+    ["Flux mensuels sortants", formatMoney(summary.monthly_outflows)],
   ];
 
   return <SimpleTable rows={rows} title="Lecture comptable du mois" />;

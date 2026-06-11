@@ -51,7 +51,7 @@ export function DashboardMetrics({
     {
       label: "Cash estime",
       value: formatMoney(dashboard.estimated_cash),
-      help: "Tresorerie depart + ventes TTC - factures TTC - TVA a payer.",
+      help: "Tresorerie depart + ventes TTC - factures TTC - TVA a payer - flux mensuels (salaires, charges, investissements, emprunts).",
     },
     {
       label: "Fin de mois prevue",
