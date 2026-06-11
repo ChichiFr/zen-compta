@@ -64,10 +64,18 @@ export async function saveSalesAction(formData: FormData) {
 
   const period = String(formData.get("period") ?? currentMonth());
   const periodStart = monthToDate(period);
+  const salesHt = String(formData.get("sales_ht") ?? "0");
+  const vatCollected = String(formData.get("vat_collected") ?? "0");
+  const salesTtc = String(formData.get("sales_ttc") ?? "0");
+  if (
+    Math.abs(Number(salesHt) + Number(vatCollected) - Number(salesTtc)) >= 0.005
+  ) {
+    redirectBack(formData, "invalid_sales", "/cash-flow");
+  }
   const result = await saveMonthlySales(periodStart, {
-    sales_ht: String(formData.get("sales_ht") ?? "0"),
-    vat_collected: String(formData.get("vat_collected") ?? "0"),
-    sales_ttc: String(formData.get("sales_ttc") ?? "0"),
+    sales_ht: salesHt,
+    vat_collected: vatCollected,
+    sales_ttc: salesTtc,
   });
 
   redirectBack(formData, result.error ? result.error : "saved", "/cash-flow");

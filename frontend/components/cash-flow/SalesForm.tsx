@@ -15,6 +15,9 @@ export function SalesForm({
   return (
     <form action={saveSalesAction} className="rounded-md border border-slate-200 bg-white p-5">
       <h2 className="text-base font-semibold">Ventes mensuelles</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Les trois montants doivent etre coherents: HT + TVA = TTC.
+      </p>
       <input name="return_to" type="hidden" value="/cash-flow" />
       <input name="period" type="hidden" value={period} />
       <input name="opening_cash" type="hidden" value={openingCash} />
