@@ -136,7 +136,12 @@ export async function getRunwayForecastSummary(
 }
 
 export async function getMonthlySales(periodStart: string) {
-  return fetchJson<MonthlySales>(`/monthly-sales/${periodStart}`);
+  const result = await fetchJson<MonthlySales>(`/monthly-sales/${periodStart}`);
+  if (result.error === "api_error_404") {
+    // Aucune vente saisie pour ce mois: etat normal, pas une erreur.
+    return { data: null, error: null };
+  }
+  return result;
 }
 
 export async function saveMonthlySales(
