@@ -373,6 +373,30 @@ def test_list_invoices_can_filter_by_month(client: TestClient):
     assert body[0]["supplier_name"] == "May Supplier"
 
 
+def test_review_inbox_includes_manual_drafts_with_any_date(client: TestClient):
+    client.post(
+        "/api/invoices",
+        json={
+            "supplier_name": "October Supplier",
+            "invoice_date": "2025-10-15",
+            "lines": [
+                {
+                    "description": "Achats octobre",
+                    "vat_rate": "20",
+                    "amount_ht": "100.00",
+                }
+            ],
+        },
+    )
+
+    response = client.get("/api/invoices", params={"imported_to_review": "true"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["supplier_name"] == "October Supplier"
+
+
 def test_invoice_csv_export_contains_monthly_invoice_lines(client: TestClient):
     may_invoice = client.post(
         "/api/invoices",

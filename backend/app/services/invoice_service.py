@@ -4,7 +4,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Invoice, InvoiceLine, InvoiceSource, InvoiceStatus
+from app.models import Invoice, InvoiceLine, InvoiceStatus
 from app.schemas.invoice import InvoiceCreate, InvoiceUpdate
 from app.services.invoice_calculations import (
     InvoiceLineDraft,
@@ -149,7 +149,6 @@ class InvoiceService:
         )
         if imported_to_review:
             statement = statement.where(
-                Invoice.source == InvoiceSource.AI_UPLOAD,
                 Invoice.status.in_([InvoiceStatus.DRAFT, InvoiceStatus.NEEDS_REVIEW]),
             )
             statement = statement.order_by(Invoice.created_at.desc())

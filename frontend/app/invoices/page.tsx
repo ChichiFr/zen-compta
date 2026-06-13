@@ -56,11 +56,11 @@ export default async function InvoicesPage({
       <ApiErrorNotice error={invoices.error} label="les factures du mois" />
 
       <InvoiceList
-        emptyText="Aucune facture importee a traiter."
+        emptyText="Aucune facture a traiter."
         invoices={reviewInboxInvoices.data ?? []}
         openingCash={openingCash}
         period={period}
-        title="Factures importees a traiter"
+        title="Factures a traiter"
       />
 
       <InvoiceForm openingCash={openingCash} period={period} />
