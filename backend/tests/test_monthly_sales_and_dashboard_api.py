@@ -403,7 +403,29 @@ def test_monthly_performance_summary_splits_operating_and_non_operating_cash(
         "packaging_ht": "200.00",
         "salaries": "1200.00",
         "social_charges": "400.00",
-        "external_purchases_taxes_ht": "300.00",
+        "salaries_total_ht": "1600.00",
+        "fixed_charges_ht": "300.00",
+        "external_purchases_ht": "0.00",
+        "fixed_charges_breakdown": {
+            "rent": "0.00",
+            "electricity": "0.00",
+            "water": "0.00",
+            "gas": "0.00",
+            "phone_internet": "0.00",
+            "maintenance": "300.00",
+        },
+        "external_purchases_breakdown": {
+            "purchase_transport": "0.00",
+            "cleaning_products": "0.00",
+            "discount": "0.00",
+            "hygiene_products": "0.00",
+            "administrative_supplies": "0.00",
+            "fuel_purchases": "0.00",
+            "business_meals": "0.00",
+            "tips_donations": "0.00",
+            "point_of_sale_advertising": "0.00",
+            "other": "0.00",
+        },
         "ebe_cash": "1900.00",
     }
     assert body["non_operating_cash_flow"] == {
@@ -710,7 +732,9 @@ def test_runway_forecast_carries_cash_across_months_and_excludes_investments(
     assert custom["sales_drop_rate"] == "20.00"
     assert custom["runway_months"] == 3
     assert custom["first_critical_month"] is None
-    assert custom["ending_cash_estimate"] == "38100.00"
+    # Sales drop compounds month after month:
+    # M+1 = ref * 0.8, M+2 = ref * 0.64, M+3 = ref * 0.512.
+    assert custom["ending_cash_estimate"] == "23316.00"
     assert custom["risk_level"] == "ok"
     assert custom["months"][0]["month"] == "2026-05-01"
     assert custom["months"][0]["forecast_sales_ht"] == "36000.00"
@@ -722,9 +746,11 @@ def test_runway_forecast_carries_cash_across_months_and_excludes_investments(
     assert custom["months"][0]["loan_repayments_cash"] == "2500.00"
     assert custom["months"][0]["ending_cash_estimate"] == "22700.00"
     assert custom["months"][1]["opening_cash"] == "22700.00"
-    assert custom["months"][1]["ending_cash_estimate"] == "30400.00"
-    assert custom["months"][2]["opening_cash"] == "30400.00"
-    assert custom["ending_cash_estimate"] == "38100.00"
+    assert custom["months"][1]["forecast_sales_ht"] == "28800.00"
+    assert custom["months"][1]["ending_cash_estimate"] == "25120.00"
+    assert custom["months"][2]["opening_cash"] == "25120.00"
+    assert custom["months"][2]["forecast_sales_ht"] == "23040.00"
+    assert custom["ending_cash_estimate"] == "23316.00"
     assert "investments_cash" not in custom["months"][0]
     assert scenarios["sales_minus_30"]["months"][0]["forecast_sales_ht"] == "31500.00"
     assert scenarios["sales_minus_30"]["months"][0]["vat_payable_estimate"] == "2100.00"
@@ -791,6 +817,34 @@ def test_runway_forecast_marks_opening_cash_below_threshold_as_critical(
     assert custom["first_critical_month"] == "2026-06-01"
     assert custom["risk_level"] == "critical"
     assert custom["months"][0]["ending_cash_estimate"] == "21000.00"
+
+
+def test_runway_forecast_compounds_sales_drop_across_months(client: TestClient):
+    response = client.get(
+        "/api/forecast/runway",
+        params={
+            "period_start": "2026-06-20",
+            "opening_cash": "100000.00",
+            "months": "3",
+            "reference_sales_ht": "10000.00",
+            "custom_sales_drop_rate": "10.00",
+            "fixed_salaries": "0.00",
+            "variable_salary_rate": "0.00",
+            "social_charge_rate": "0.00",
+            "loan_repayments_cash": "0.00",
+            "monthly_vat_payable_estimate": "0.00",
+            "minimum_cash_threshold": "0.00",
+        },
+    )
+
+    assert response.status_code == 200
+    custom = {
+        scenario["key"]: scenario for scenario in response.json()["scenarios"]
+    }["custom_drop"]
+    # 10% drop compounds: ref * 0.9, ref * 0.81, ref * 0.729.
+    assert custom["months"][0]["forecast_sales_ht"] == "9000.00"
+    assert custom["months"][1]["forecast_sales_ht"] == "8100.00"
+    assert custom["months"][2]["forecast_sales_ht"] == "7290.00"
 
 
 def test_runway_forecast_rejects_period_too_late_for_projection(

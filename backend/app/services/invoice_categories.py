@@ -18,6 +18,10 @@ InvoiceCategoryCode = Literal[
     "business_meals",
     "tips_donations",
     "point_of_sale_advertising",
+    "rent",
+    "electricity",
+    "water",
+    "gas",
     "other",
 ]
 
@@ -37,6 +41,10 @@ CATEGORY_LABELS: dict[str, str] = {
     "business_meals": "REPAS PROFESSIONNEL",
     "tips_donations": "POURBOIRE DONS COURANTS",
     "point_of_sale_advertising": "PUB. SUR POINT DE VENTE",
+    "rent": "LOYER",
+    "electricity": "ELECTRICITE",
+    "water": "EAU",
+    "gas": "GAZ",
     "other": "AUTRE",
 }
 

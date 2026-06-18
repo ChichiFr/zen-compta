@@ -27,20 +27,44 @@ PERFORMANCE_CATEGORY_BUCKETS: dict[str, str] = {
     "raw_materials_20": "raw_materials_ht",
     "alcohol_purchases": "raw_materials_ht",
     "lost_packaging_20": "packaging_ht",
-    "maintenance": "external_purchases_taxes_ht",
-    "purchase_transport": "external_purchases_taxes_ht",
-    "cleaning_products": "external_purchases_taxes_ht",
-    "discount": "external_purchases_taxes_ht",
-    "hygiene_products": "external_purchases_taxes_ht",
-    "administrative_supplies": "external_purchases_taxes_ht",
-    "phone_internet": "external_purchases_taxes_ht",
-    "fuel_purchases": "external_purchases_taxes_ht",
-    "business_meals": "external_purchases_taxes_ht",
-    "tips_donations": "external_purchases_taxes_ht",
-    "point_of_sale_advertising": "external_purchases_taxes_ht",
-    "other": "external_purchases_taxes_ht",
+    "rent": "fixed_charges_ht",
+    "electricity": "fixed_charges_ht",
+    "water": "fixed_charges_ht",
+    "gas": "fixed_charges_ht",
+    "phone_internet": "fixed_charges_ht",
+    "maintenance": "fixed_charges_ht",
+    "purchase_transport": "external_purchases_ht",
+    "cleaning_products": "external_purchases_ht",
+    "discount": "external_purchases_ht",
+    "hygiene_products": "external_purchases_ht",
+    "administrative_supplies": "external_purchases_ht",
+    "fuel_purchases": "external_purchases_ht",
+    "business_meals": "external_purchases_ht",
+    "tips_donations": "external_purchases_ht",
+    "point_of_sale_advertising": "external_purchases_ht",
+    "other": "external_purchases_ht",
 }
-UNCATEGORIZED_BUCKET = "external_purchases_taxes_ht"
+UNCATEGORIZED_BUCKET = "external_purchases_ht"
+FIXED_CHARGES_CATEGORIES = (
+    "rent",
+    "electricity",
+    "water",
+    "gas",
+    "phone_internet",
+    "maintenance",
+)
+EXTERNAL_PURCHASES_CATEGORIES = (
+    "purchase_transport",
+    "cleaning_products",
+    "discount",
+    "hygiene_products",
+    "administrative_supplies",
+    "fuel_purchases",
+    "business_meals",
+    "tips_donations",
+    "point_of_sale_advertising",
+    "other",
+)
 UNMAPPED_PERFORMANCE_CATEGORIES = ALLOWED_CATEGORY_CODES - set(
     PERFORMANCE_CATEGORY_BUCKETS
 )
@@ -103,12 +127,16 @@ class PerformanceService:
         invoice_line_totals = self._validated_invoice_line_totals(start, end)
         raw_materials_ht = invoice_line_totals["raw_materials_ht"]
         packaging_ht = invoice_line_totals["packaging_ht"]
-        external_purchases_taxes_ht = invoice_line_totals[
-            "external_purchases_taxes_ht"
+        fixed_charges_ht = invoice_line_totals["fixed_charges_ht"]
+        external_purchases_ht = invoice_line_totals["external_purchases_ht"]
+        fixed_charges_breakdown = invoice_line_totals["fixed_charges_breakdown"]
+        external_purchases_breakdown = invoice_line_totals[
+            "external_purchases_breakdown"
         ]
         vat_deductible = invoice_line_totals["vat_deductible"]
         salaries = money(input_values.salaries)
         social_charges = money(input_values.social_charges)
+        salaries_total = money(salaries + social_charges)
         investments_cash = money(input_values.investments_cash)
         loan_repayments_cash = money(input_values.loan_repayments_cash)
 
@@ -118,7 +146,8 @@ class PerformanceService:
             - packaging_ht
             - salaries
             - social_charges
-            - external_purchases_taxes_ht
+            - fixed_charges_ht
+            - external_purchases_ht
         )
         vat_net_estimate = money(vat_collected - vat_deductible)
         vat_payable_estimate = money(max(vat_net_estimate, Decimal("0")))
@@ -139,7 +168,11 @@ class PerformanceService:
                 packaging_ht=packaging_ht,
                 salaries=salaries,
                 social_charges=social_charges,
-                external_purchases_taxes_ht=external_purchases_taxes_ht,
+                salaries_total_ht=salaries_total,
+                fixed_charges_ht=fixed_charges_ht,
+                external_purchases_ht=external_purchases_ht,
+                fixed_charges_breakdown=fixed_charges_breakdown,
+                external_purchases_breakdown=external_purchases_breakdown,
                 ebe_cash=ebe_cash,
             ),
             non_operating_cash_flow=MonthlyNonOperatingCashFlowTable(
@@ -173,7 +206,7 @@ class PerformanceService:
 
     def _validated_invoice_line_totals(
         self, start: date, end: date
-    ) -> dict[str, Decimal]:
+    ) -> dict[str, object]:
         rows = self.db.execute(
             select(
                 InvoiceLine.category,
@@ -191,8 +224,15 @@ class PerformanceService:
 
         raw_materials_ht = Decimal("0")
         packaging_ht = Decimal("0")
-        external_purchases_taxes_ht = Decimal("0")
+        fixed_charges_ht = Decimal("0")
+        external_purchases_ht = Decimal("0")
         vat_deductible = Decimal("0")
+        fixed_charges_breakdown: dict[str, Decimal] = {
+            code: Decimal("0") for code in FIXED_CHARGES_CATEGORIES
+        }
+        external_purchases_breakdown: dict[str, Decimal] = {
+            code: Decimal("0") for code in EXTERNAL_PURCHASES_CATEGORIES
+        }
 
         for category, amount_ht, amount_tva in rows:
             line_ht = money(amount_ht)
@@ -204,12 +244,31 @@ class PerformanceService:
                 raw_materials_ht += line_ht
             elif bucket == "packaging_ht":
                 packaging_ht += line_ht
+            elif bucket == "fixed_charges_ht":
+                fixed_charges_ht += line_ht
+                if category in fixed_charges_breakdown:
+                    fixed_charges_breakdown[category] += line_ht
             else:
-                external_purchases_taxes_ht += line_ht
+                external_purchases_ht += line_ht
+                key = (
+                    category
+                    if category in external_purchases_breakdown
+                    else "other"
+                )
+                external_purchases_breakdown[key] += line_ht
 
         return {
             "raw_materials_ht": money(raw_materials_ht),
             "packaging_ht": money(packaging_ht),
-            "external_purchases_taxes_ht": money(external_purchases_taxes_ht),
+            "fixed_charges_ht": money(fixed_charges_ht),
+            "external_purchases_ht": money(external_purchases_ht),
+            "fixed_charges_breakdown": {
+                code: money(value)
+                for code, value in fixed_charges_breakdown.items()
+            },
+            "external_purchases_breakdown": {
+                code: money(value)
+                for code, value in external_purchases_breakdown.items()
+            },
             "vat_deductible": money(vat_deductible),
         }

@@ -58,7 +58,20 @@ fuel_purchases,
 business_meals,
 tips_donations,
 point_of_sale_advertising,
+rent,
+electricity,
+water,
+gas,
 other.
+
+Category hints for French restaurant invoices:
+- rent: monthly commercial lease (loyer, bail commercial).
+- electricity: electricity providers such as EDF, Engie, TotalEnergies, Eni.
+- water: water utilities such as Veolia, Suez, SAUR, Eau de Paris.
+- gas: gas providers such as GRDF, Engie gaz, TotalEnergies gaz, propane bottles.
+- phone_internet: telecom (Orange, SFR, Bouygues, Free) and internet contracts.
+- maintenance: HVAC, kitchen equipment repairs, pest control,
+  recurring service contracts.
 """.strip()
 
 

@@ -34,7 +34,11 @@ export type MonthlyPerformanceSummary = {
     packaging_ht: string;
     salaries: string;
     social_charges: string;
-    external_purchases_taxes_ht: string;
+    salaries_total_ht: string;
+    fixed_charges_ht: string;
+    external_purchases_ht: string;
+    fixed_charges_breakdown: Record<string, string>;
+    external_purchases_breakdown: Record<string, string>;
     ebe_cash: string;
   };
   non_operating_cash_flow: {

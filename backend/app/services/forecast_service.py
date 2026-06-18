@@ -182,7 +182,8 @@ class ForecastService:
             operating_costs_ht = (
                 summary.performance.raw_materials_ht
                 + summary.performance.packaging_ht
-                + summary.performance.external_purchases_taxes_ht
+                + summary.performance.fixed_charges_ht
+                + summary.performance.external_purchases_ht
             )
             if sales_ht > 0 or operating_costs_ht > 0 or summary.vat_deductible > 0:
                 months_with_activity += 1
@@ -281,12 +282,19 @@ class ForecastService:
             if assumptions.opening_cash < assumptions.minimum_cash_threshold
             else None
         )
+        monthly_drop_multiplier = Decimal("1") - sales_drop_rate / Decimal("100")
         for month_index in range(assumptions.months):
             month = shift_months(period_start, month_index)
             opening_cash = cash
-            sales_multiplier = Decimal("1") - sales_drop_rate / Decimal("100")
+            # Compound the drop month after month: M+1 = ref * (1-d),
+            # M+2 = ref * (1-d)^2, etc. Reflects an activity that keeps
+            # degrading instead of dropping once and stabilizing.
+            compounded_multiplier = monthly_drop_multiplier ** (month_index + 1)
             forecast_sales_ht = money(
-                max(assumptions.reference_sales_ht * sales_multiplier, Decimal("0"))
+                max(
+                    assumptions.reference_sales_ht * compounded_multiplier,
+                    Decimal("0"),
+                )
             )
             operating_costs_ht = money(forecast_sales_ht * operating_costs_ratio)
             salaries = money(
