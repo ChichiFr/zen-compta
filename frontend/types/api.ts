@@ -186,6 +186,35 @@ export type DocumentImportUpload = {
   invoice: Invoice;
 };
 
+export type AssistantUploadResult = {
+  invoice: Invoice;
+  summary_text: string;
+  needs_action: boolean;
+};
+
+export type AssistantReviewSummary = {
+  invoices: Invoice[];
+  summary_text: string;
+  count: number;
+};
+
+export type AssistantDashboardSummary = {
+  dashboard: DashboardSummary;
+  summary_text: string;
+  alerts: string[];
+};
+
+export type AssistantValidationResult = {
+  invoice: Invoice;
+  summary_text: string;
+  success: boolean;
+};
+
+export type AssistantHealthBrief = {
+  text: string;
+  risk_level: "ok" | "warning" | "critical";
+};
+
 export type ApiResult<T> =
   | { data: T; error: null }
   | { data: null; error: string };

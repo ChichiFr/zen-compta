@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 10 * 1024 * 1024
     openai_api_key: str | None = None
     openai_invoice_model: str = "gpt-5.5"
+    openai_assistant_model: str = "gpt-4.1-mini"
 
     model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
 

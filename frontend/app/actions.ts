@@ -18,7 +18,7 @@ import { currentMonth, monthToDate } from "@/app/pageUtils";
 type InvoiceLineFormResult = InvoiceLineInput | "incomplete" | null;
 
 const INVOICE_FORM_LINE_NUMBERS = [1, 2, 3, 4, 5] as const;
-const ALLOWED_RETURN_PATHS = new Set(["/", "/invoices", "/cash-flow", "/forecast"]);
+const ALLOWED_RETURN_PATHS = new Set(["/", "/invoices", "/cash-flow", "/forecast", "/assistant"]);
 
 function redirectBack(formData: FormData, message: string, fallbackPath: string): never {
   const requestedReturnTo = String(formData.get("return_to") ?? fallbackPath);

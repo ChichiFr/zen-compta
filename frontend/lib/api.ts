@@ -1,6 +1,11 @@
 import { internalApiToken } from "@/lib/session";
 import type {
   ApiResult,
+  AssistantDashboardSummary,
+  AssistantHealthBrief,
+  AssistantReviewSummary,
+  AssistantUploadResult,
+  AssistantValidationResult,
   DashboardSummary,
   DocumentImportUpload,
   Invoice,
@@ -247,4 +252,50 @@ export async function archiveInvoice(invoiceId: string) {
   return fetchJson<Invoice>(`/invoices/${invoiceId}/archive`, {
     method: "POST",
   });
+}
+
+export async function assistantUpload(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return fetchJson<AssistantUploadResult>("/assistant/upload", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function getAssistantReviewSummary() {
+  return fetchJson<AssistantReviewSummary>("/assistant/review");
+}
+
+export async function getAssistantDashboard(
+  periodStart: string,
+  openingCash: string,
+) {
+  const params = new URLSearchParams({
+    period_start: periodStart,
+    opening_cash: openingCash,
+  });
+  return fetchJson<AssistantDashboardSummary>(
+    `/assistant/dashboard?${params.toString()}`,
+  );
+}
+
+export async function assistantValidateInvoice(invoiceId: string) {
+  return fetchJson<AssistantValidationResult>(
+    `/assistant/validate/${invoiceId}`,
+    { method: "POST" },
+  );
+}
+
+export async function getAssistantHealthBrief(
+  periodStart: string,
+  openingCash: string,
+) {
+  const params = new URLSearchParams({
+    period_start: periodStart,
+    opening_cash: openingCash,
+  });
+  return fetchJson<AssistantHealthBrief>(
+    `/assistant/health-brief?${params.toString()}`,
+  );
 }
