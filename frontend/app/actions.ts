@@ -8,6 +8,8 @@ import {
   createInvoice,
   saveMonthlyCashFlowInputs,
   saveMonthlySales,
+  startBankConnection,
+  syncBankTransactions,
   updateInvoice,
   uploadDocumentImport,
   validateInvoice,
@@ -18,7 +20,13 @@ import { currentMonth, monthToDate } from "@/app/pageUtils";
 type InvoiceLineFormResult = InvoiceLineInput | "incomplete" | null;
 
 const INVOICE_FORM_LINE_NUMBERS = [1, 2, 3, 4, 5] as const;
-const ALLOWED_RETURN_PATHS = new Set(["/", "/invoices", "/cash-flow", "/forecast"]);
+const ALLOWED_RETURN_PATHS = new Set([
+  "/",
+  "/invoices",
+  "/cash-flow",
+  "/forecast",
+  "/bank",
+]);
 
 function redirectBack(formData: FormData, message: string, fallbackPath: string): never {
   const requestedReturnTo = String(formData.get("return_to") ?? fallbackPath);
@@ -208,6 +216,32 @@ export async function archiveInvoiceAction(formData: FormData) {
     result.error ? result.error : "invoice_archived",
     "/invoices",
   );
+}
+
+export async function startBankConnectionAction() {
+  await requireAuth();
+
+  const result = await startBankConnection();
+  if (result.error || !result.data) {
+    redirect("/bank?message=bank_connect_failed");
+  }
+  redirect(result.data.auth_link);
+}
+
+export async function syncBankTransactionsAction(formData: FormData) {
+  await requireAuth();
+
+  const connectionId = String(formData.get("connection_id") ?? "");
+  const period = String(formData.get("period") ?? currentMonth());
+  const openingCash = String(formData.get("opening_cash") ?? "0");
+  const result = await syncBankTransactions(connectionId);
+  const params = new URLSearchParams({
+    connection: connectionId,
+    message: result.error ? "bank_sync_failed" : "bank_synced",
+    openingCash,
+    period,
+  });
+  redirect(`/bank?${params.toString()}`);
 }
 
 export async function logoutAction() {

@@ -1,6 +1,7 @@
 from fastapi import Depends, FastAPI
 
 from app.api.routes import (
+    bank,
     dashboard,
     document_imports,
     forecast,
@@ -43,6 +44,11 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         document_imports.router,
+        prefix="/api",
+        dependencies=[Depends(require_internal_api_token)],
+    )
+    app.include_router(
+        bank.router,
         prefix="/api",
         dependencies=[Depends(require_internal_api_token)],
     )

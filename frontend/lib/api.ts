@@ -1,6 +1,10 @@
 import { internalApiToken } from "@/lib/session";
 import type {
   ApiResult,
+  BankConnection,
+  BankConnectionStartResult,
+  BankSyncResult,
+  BankTransaction,
   DashboardSummary,
   DocumentImportUpload,
   Invoice,
@@ -247,4 +251,31 @@ export async function archiveInvoice(invoiceId: string) {
   return fetchJson<Invoice>(`/invoices/${invoiceId}/archive`, {
     method: "POST",
   });
+}
+
+export async function startBankConnection() {
+  return fetchJson<BankConnectionStartResult>("/bank/connect", {
+    method: "POST",
+  });
+}
+
+export async function completeBankCallback(ref: string) {
+  const params = new URLSearchParams({ ref });
+  return fetchJson<BankConnection>(`/bank/callback?${params.toString()}`);
+}
+
+export async function listBankConnections() {
+  return fetchJson<BankConnection[]>("/bank/connections");
+}
+
+export async function syncBankTransactions(connectionId: string) {
+  return fetchJson<BankSyncResult>(`/bank/connections/${connectionId}/sync`, {
+    method: "POST",
+  });
+}
+
+export async function listBankTransactions(connectionId: string) {
+  return fetchJson<BankTransaction[]>(
+    `/bank/connections/${connectionId}/transactions`,
+  );
 }
