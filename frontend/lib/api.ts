@@ -259,8 +259,11 @@ export async function startBankConnection() {
   });
 }
 
-export async function completeBankCallback(ref: string) {
+export async function completeBankCallback(ref: string, connectionId?: string) {
   const params = new URLSearchParams({ ref });
+  if (connectionId) {
+    params.set("connection_id", connectionId);
+  }
   return fetchJson<BankConnection>(`/bank/callback?${params.toString()}`);
 }
 

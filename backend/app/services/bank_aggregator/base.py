@@ -15,6 +15,7 @@ class RequisitionResult:
     requisition_id: str
     auth_link: str
     expires_at: datetime | None
+    session_data: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -52,12 +53,20 @@ class BankAggregator(ABC):
         """Create a requisition and return the auth link to redirect the user to."""
 
     @abstractmethod
-    def get_requisition_accounts(self, requisition_id: str) -> list[str]:
-        """Return the list of external_account_ids once the user has authorized."""
+    def get_requisition_accounts(
+        self,
+        requisition_id: str,
+        session_data: dict | None = None,
+    ) -> list[str]:
+        """Return account ids using optional provider-specific persisted data."""
 
     @abstractmethod
-    def get_account_metadata(self, external_account_id: str) -> AccountInfo:
-        """Return account metadata (name, IBAN last4, currency)."""
+    def get_account_metadata(
+        self,
+        external_account_id: str,
+        session_data: dict | None = None,
+    ) -> AccountInfo:
+        """Return account metadata using optional provider-specific persisted data."""
 
     @abstractmethod
     def fetch_transactions(
@@ -65,5 +74,6 @@ class BankAggregator(ABC):
         *,
         external_account_id: str,
         date_from: date,
+        session_data: dict | None = None,
     ) -> list[TransactionInfo]:
-        """Fetch transactions since date_from."""
+        """Fetch transactions using optional provider-specific persisted data."""

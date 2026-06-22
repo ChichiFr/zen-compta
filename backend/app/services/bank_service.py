@@ -52,6 +52,7 @@ class BankService:
             reference=reference,
             status=BankConnectionStatus.CREATED,
             expires_at=result.expires_at,
+            provider_session_data=result.session_data,
         )
         connection.auth_link = result.auth_link
         self.db.add(connection)
@@ -60,14 +61,27 @@ class BankService:
         connection.auth_link = result.auth_link
         return connection
 
-    def complete_connection(self, reference: str) -> BankConnection:
+    def complete_connection(
+        self,
+        reference: str,
+        *,
+        upstream_connection_id: str | None = None,
+    ) -> BankConnection:
         aggregator = self._require_aggregator()
         connection = self._get_connection_by_reference(reference)
         if connection.status == BankConnectionStatus.LINKED:
             # Idempotent: already linked, don't refetch accounts.
             return connection
+        if (
+            upstream_connection_id
+            and upstream_connection_id != connection.external_requisition_id
+        ):
+            connection.external_requisition_id = upstream_connection_id
+            self.db.flush()
+        session_data = dict(connection.provider_session_data or {})
         account_ids = aggregator.get_requisition_accounts(
-            connection.external_requisition_id
+            connection.external_requisition_id,
+            session_data=session_data,
         )
         if not account_ids:
             raise BankAggregatorUnavailableError("bank_connection_has_no_accounts")
@@ -77,7 +91,10 @@ class BankService:
         for external_account_id in account_ids:
             if external_account_id in existing_account_ids:
                 continue
-            account_info = aggregator.get_account_metadata(external_account_id)
+            account_info = aggregator.get_account_metadata(
+                external_account_id,
+                session_data=session_data,
+            )
             connection.accounts.append(
                 BankAccount(
                     external_account_id=account_info.external_account_id,
@@ -103,6 +120,7 @@ class BankService:
         connection = self.get_connection(connection_id)
         date_from = date.today() - timedelta(days=90)
         new_rows: list[BankTransaction] = []
+        session_data = dict(connection.provider_session_data or {})
         for account in connection.accounts:
             existing_external_ids = {
                 external_id
@@ -115,6 +133,7 @@ class BankService:
             transactions = aggregator.fetch_transactions(
                 external_account_id=account.external_account_id,
                 date_from=date_from,
+                session_data=session_data,
             )
             for transaction in transactions:
                 if transaction.external_id in existing_external_ids:

@@ -25,6 +25,8 @@ from app.services.bank_service import BankService
 
 
 class FakeBankAggregator(BankAggregator):
+    last_session_data: dict | None = None
+
     def create_requisition(
         self,
         *,
@@ -36,13 +38,24 @@ class FakeBankAggregator(BankAggregator):
             requisition_id="fake-requisition",
             auth_link="https://bank.example/auth",
             expires_at=None,
+            session_data={"auth_token": "fake-token", "id_user": "fake-user"},
         )
 
-    def get_requisition_accounts(self, requisition_id: str) -> list[str]:
-        assert requisition_id == "fake-requisition"
+    def get_requisition_accounts(
+        self,
+        requisition_id: str,
+        session_data: dict | None = None,
+    ) -> list[str]:
+        FakeBankAggregator.last_session_data = session_data
+        assert requisition_id in {"fake-requisition", "powens-conn-42"}
         return ["fake-account"]
 
-    def get_account_metadata(self, external_account_id: str) -> AccountInfo:
+    def get_account_metadata(
+        self,
+        external_account_id: str,
+        session_data: dict | None = None,
+    ) -> AccountInfo:
+        FakeBankAggregator.last_session_data = session_data
         assert external_account_id == "fake-account"
         return AccountInfo(
             external_account_id="fake-account",
@@ -56,7 +69,9 @@ class FakeBankAggregator(BankAggregator):
         *,
         external_account_id: str,
         date_from: date,
+        session_data: dict | None = None,
     ) -> list[TransactionInfo]:
+        FakeBankAggregator.last_session_data = session_data
         assert external_account_id == "fake-account"
         return [
             TransactionInfo(
@@ -147,6 +162,62 @@ def test_callback_completes_connection(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "linked"
+
+
+def test_callback_accepts_powens_connection_id(client: TestClient) -> None:
+    created = client.post("/api/bank/connect").json()
+    connection_id = created["connection"]["id"]
+    reference = _connection_reference(client, connection_id)
+
+    response = client.get(
+        "/api/bank/callback",
+        params={"ref": reference, "connection_id": "powens-conn-42"},
+    )
+
+    assert response.status_code == 200
+    session_factory = client.testing_session_local  # type: ignore[attr-defined]
+    with session_factory() as db:
+        db_connection = db.get(BankConnection, UUID(connection_id))
+        assert db_connection is not None
+        assert db_connection.external_requisition_id == "powens-conn-42"
+
+
+def test_provider_session_data_is_persisted_and_passed(
+    client: TestClient,
+) -> None:
+    FakeBankAggregator.last_session_data = None
+    created = client.post("/api/bank/connect").json()
+    connection_id = created["connection"]["id"]
+    reference = _connection_reference(client, connection_id)
+    session_factory = client.testing_session_local  # type: ignore[attr-defined]
+
+    with session_factory() as db:
+        db_connection = db.get(BankConnection, UUID(connection_id))
+        assert db_connection is not None
+        assert db_connection.provider_session_data == {
+            "auth_token": "fake-token",
+            "id_user": "fake-user",
+        }
+
+    callback_response = client.get(
+        "/api/bank/callback",
+        params={"ref": reference},
+    )
+
+    assert callback_response.status_code == 200
+    assert FakeBankAggregator.last_session_data == {
+        "auth_token": "fake-token",
+        "id_user": "fake-user",
+    }
+
+    FakeBankAggregator.last_session_data = None
+    sync_response = client.post(f"/api/bank/connections/{connection_id}/sync")
+
+    assert sync_response.status_code == 200
+    assert FakeBankAggregator.last_session_data == {
+        "auth_token": "fake-token",
+        "id_user": "fake-user",
+    }
 
 
 def test_callback_is_idempotent_when_already_linked(client: TestClient) -> None:

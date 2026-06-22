@@ -15,11 +15,12 @@ export default async function BankCallbackPage({
 
   const params = await searchParams;
   const ref = firstParam(params, "ref", "");
+  const connectionId = firstParam(params, "connection_id", "");
   if (!ref) {
     redirect("/bank?message=bank_callback_missing");
   }
 
-  const result = await completeBankCallback(ref);
+  const result = await completeBankCallback(ref, connectionId || undefined);
   if (result.error || !result.data) {
     redirect("/bank?message=bank_callback_failed");
   }

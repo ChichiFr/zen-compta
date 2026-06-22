@@ -50,10 +50,14 @@ def start_bank_connection(
 @router.get("/callback", response_model=BankConnectionRead)
 def bank_callback(
     ref: str,
+    connection_id: str | None = None,
     service: BankService = Depends(get_bank_service),
 ) -> BankConnectionRead:
     try:
-        return service.complete_connection(ref)
+        return service.complete_connection(
+            ref,
+            upstream_connection_id=connection_id,
+        )
     except BankConnectionNotFoundError as exc:
         raise HTTPException(
             status_code=404, detail="bank_connection_not_found"

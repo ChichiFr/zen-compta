@@ -96,7 +96,11 @@ class GoCardlessAggregator(BankAggregator):
                 "gocardless_requisition_invalid_payload"
             ) from exc
 
-    def get_requisition_accounts(self, requisition_id: str) -> list[str]:
+    def get_requisition_accounts(
+        self,
+        requisition_id: str,
+        session_data: dict | None = None,
+    ) -> list[str]:
         response = self._client.get(
             f"{self.BASE_URL}/requisitions/{requisition_id}/",
             headers=self._auth_headers(),
@@ -110,7 +114,11 @@ class GoCardlessAggregator(BankAggregator):
         )
         return list(payload.get("accounts", []))
 
-    def get_account_metadata(self, external_account_id: str) -> AccountInfo:
+    def get_account_metadata(
+        self,
+        external_account_id: str,
+        session_data: dict | None = None,
+    ) -> AccountInfo:
         response = self._client.get(
             f"{self.BASE_URL}/accounts/{external_account_id}/details/",
             headers=self._auth_headers(),
@@ -136,6 +144,7 @@ class GoCardlessAggregator(BankAggregator):
         *,
         external_account_id: str,
         date_from: date,
+        session_data: dict | None = None,
     ) -> list[TransactionInfo]:
         response = self._client.get(
             f"{self.BASE_URL}/accounts/{external_account_id}/transactions/",
