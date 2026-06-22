@@ -58,3 +58,6 @@ Thumbs.db
 .vscode/
 *.log
 *.err
+
+# Local-only docs (plans for AI agents, scratch notes, etc.)
+docs/codex-tasks/

@@ -149,6 +149,23 @@ def test_callback_completes_connection(client: TestClient) -> None:
     assert response.json()["status"] == "linked"
 
 
+def test_callback_is_idempotent_when_already_linked(client: TestClient) -> None:
+    created = client.post("/api/bank/connect").json()
+    connection_id = created["connection"]["id"]
+    reference = _connection_reference(client, connection_id)
+
+    first = client.get("/api/bank/callback", params={"ref": reference})
+    second = client.get("/api/bank/callback", params={"ref": reference})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["status"] == "linked"
+    assert second.json()["status"] == "linked"
+    # A second callback must not duplicate accounts.
+    connections = client.get("/api/bank/connections").json()
+    assert len(connections) == 1
+
+
 def test_sync_transactions_is_idempotent(client: TestClient) -> None:
     connection_id = _linked_connection_id(client)
 

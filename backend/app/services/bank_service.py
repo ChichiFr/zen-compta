@@ -63,6 +63,9 @@ class BankService:
     def complete_connection(self, reference: str) -> BankConnection:
         aggregator = self._require_aggregator()
         connection = self._get_connection_by_reference(reference)
+        if connection.status == BankConnectionStatus.LINKED:
+            # Idempotent: already linked, don't refetch accounts.
+            return connection
         account_ids = aggregator.get_requisition_accounts(
             connection.external_requisition_id
         )
@@ -99,7 +102,7 @@ class BankService:
         aggregator = self._require_aggregator()
         connection = self.get_connection(connection_id)
         date_from = date.today() - timedelta(days=90)
-        new_transactions_count = 0
+        new_rows: list[BankTransaction] = []
         for account in connection.accounts:
             existing_external_ids = {
                 external_id
@@ -116,7 +119,8 @@ class BankService:
             for transaction in transactions:
                 if transaction.external_id in existing_external_ids:
                     continue
-                self.db.add(
+                existing_external_ids.add(transaction.external_id)
+                new_rows.append(
                     BankTransaction(
                         account_id=account.id,
                         external_id=transaction.external_id,
@@ -130,14 +134,33 @@ class BankService:
                         raw_payload=transaction.raw_payload,
                     )
                 )
-                try:
-                    self.db.commit()
-                except IntegrityError:
-                    self.db.rollback()
-                    continue
-                existing_external_ids.add(transaction.external_id)
-                new_transactions_count += 1
-        return new_transactions_count
+
+        if not new_rows:
+            return 0
+
+        self.db.add_all(new_rows)
+        try:
+            self.db.commit()
+        except IntegrityError:
+            # Race against a concurrent sync: fall back to per-row inserts so
+            # we still persist what we can and skip true duplicates.
+            self.db.rollback()
+            return self._insert_transactions_one_by_one(new_rows)
+        return len(new_rows)
+
+    def _insert_transactions_one_by_one(
+        self, rows: list[BankTransaction]
+    ) -> int:
+        inserted = 0
+        for row in rows:
+            self.db.add(row)
+            try:
+                self.db.commit()
+            except IntegrityError:
+                self.db.rollback()
+                continue
+            inserted += 1
+        return inserted
 
     def list_transactions(
         self, connection_id: uuid.UUID, limit: int = 100
