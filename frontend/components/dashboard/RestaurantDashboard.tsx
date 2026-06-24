@@ -14,33 +14,33 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const monthlySales = [
-  { month: "Jul 25", Ventes: 7200 },
-  { month: "Aou 25", Ventes: 8300 },
-  { month: "Sep 25", Ventes: 9100 },
-  { month: "Oct 25", Ventes: 8600 },
-  { month: "Nov 25", Ventes: 9400 },
-  { month: "Dec 25", Ventes: 11200 },
-  { month: "Jan 26", Ventes: 9800 },
-  { month: "Fev 26", Ventes: 10100 },
-  { month: "Mar 26", Ventes: 10900 },
-  { month: "Avr 26", Ventes: 11600 },
-  { month: "Mai 26", Ventes: 12100 },
-  { month: "Jun 26", Ventes: 12450 },
+  { month: "Jul", "Annee N-1": 5800, "Annee en cours": 7200 },
+  { month: "Aou", "Annee N-1": 6400, "Annee en cours": 8300 },
+  { month: "Sep", "Annee N-1": 7100, "Annee en cours": 9100 },
+  { month: "Oct", "Annee N-1": 7050, "Annee en cours": 8600 },
+  { month: "Nov", "Annee N-1": 7800, "Annee en cours": 9400 },
+  { month: "Dec", "Annee N-1": 9300, "Annee en cours": 11200 },
+  { month: "Jan", "Annee N-1": 8200, "Annee en cours": 9800 },
+  { month: "Fev", "Annee N-1": 8400, "Annee en cours": 10100 },
+  { month: "Mar", "Annee N-1": 9100, "Annee en cours": 10900 },
+  { month: "Avr", "Annee N-1": 9600, "Annee en cours": 11600 },
+  { month: "Mai", "Annee N-1": 10000, "Annee en cours": 12100 },
+  { month: "Jun", "Annee N-1": 10400, "Annee en cours": 12450 },
 ];
 
 const monthlyPurchases = [
-  { month: "Jul 25", Achats: 3100 },
-  { month: "Aou 25", Achats: 3380 },
-  { month: "Sep 25", Achats: 3520 },
-  { month: "Oct 25", Achats: 3440 },
-  { month: "Nov 25", Achats: 3710 },
-  { month: "Dec 25", Achats: 4260 },
-  { month: "Jan 26", Achats: 3890 },
-  { month: "Fev 26", Achats: 4020 },
-  { month: "Mar 26", Achats: 4150 },
-  { month: "Avr 26", Achats: 4070 },
-  { month: "Mai 26", Achats: 4210 },
-  { month: "Jun 26", Achats: 4280 },
+  { month: "Jul", "Annee N-1": 2800, "Annee en cours": 3100 },
+  { month: "Aou", "Annee N-1": 3050, "Annee en cours": 3380 },
+  { month: "Sep", "Annee N-1": 3210, "Annee en cours": 3520 },
+  { month: "Oct", "Annee N-1": 3180, "Annee en cours": 3440 },
+  { month: "Nov", "Annee N-1": 3360, "Annee en cours": 3710 },
+  { month: "Dec", "Annee N-1": 3900, "Annee en cours": 4260 },
+  { month: "Jan", "Annee N-1": 3550, "Annee en cours": 3890 },
+  { month: "Fev", "Annee N-1": 3700, "Annee en cours": 4020 },
+  { month: "Mar", "Annee N-1": 3820, "Annee en cours": 4150 },
+  { month: "Avr", "Annee N-1": 3760, "Annee en cours": 4070 },
+  { month: "Mai", "Annee N-1": 3870, "Annee en cours": 4210 },
+  { month: "Jun", "Annee N-1": 3950, "Annee en cours": 4280 },
 ];
 
 const balanceEvolution = Array.from({ length: 30 }, (_, index) => {
@@ -120,15 +120,15 @@ export function RestaurantDashboard() {
             action="Saisir mes ventes"
             chart={
               <BarChart
-                categories={["Ventes"]}
-                className="h-36"
-                colors={["emerald"]}
+                categories={["Annee N-1", "Annee en cours"]}
+                className="h-44"
+                colors={["slate", "emerald"]}
                 data={monthlySales}
                 index="month"
                 showAnimation
                 showGridLines={false}
-                showLegend={false}
-                showXAxis={false}
+                showLegend={true}
+                showXAxis={true}
                 showYAxis={false}
                 yAxisWidth={0}
               />
@@ -145,15 +145,15 @@ export function RestaurantDashboard() {
             action="Importer une facture"
             chart={
               <BarChart
-                categories={["Achats"]}
-                className="h-36"
-                colors={["rose"]}
+                categories={["Annee N-1", "Annee en cours"]}
+                className="h-44"
+                colors={["slate", "rose"]}
                 data={monthlyPurchases}
                 index="month"
                 showAnimation
                 showGridLines={false}
-                showLegend={false}
-                showXAxis={false}
+                showLegend={true}
+                showXAxis={true}
                 showYAxis={false}
                 yAxisWidth={0}
               />
