@@ -82,8 +82,7 @@ class BankService:
             new_session = aggregator.exchange_public_token(public_token)
             connection.provider_session_data = new_session
             connection.external_requisition_id = new_session["item_id"]
-            self.db.commit()
-            self.db.refresh(connection)
+            self.db.flush()
         elif (
             upstream_connection_id
             and upstream_connection_id != connection.external_requisition_id
