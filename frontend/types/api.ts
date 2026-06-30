@@ -197,6 +197,7 @@ export type BankConnection = {
   provider: string;
   institution_id: string;
   institution_name: string;
+  reference: string;
   status: BankConnectionStatus;
   expires_at: string | null;
   created_at: string;

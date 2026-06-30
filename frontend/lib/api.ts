@@ -259,7 +259,21 @@ export async function startBankConnection() {
   });
 }
 
-export async function completeBankCallback(ref: string, connectionId?: string) {
+export async function completeBankCallback(
+  ref: string,
+  connectionId?: string,
+  publicToken?: string,
+) {
+  if (publicToken) {
+    return fetchJson<BankConnection>("/bank/callback", {
+      method: "POST",
+      body: JSON.stringify({
+        ref,
+        connection_id: connectionId,
+        "public_token": publicToken,
+      }),
+    });
+  }
   const params = new URLSearchParams({ ref });
   if (connectionId) {
     params.set("connection_id", connectionId);

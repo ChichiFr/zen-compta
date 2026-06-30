@@ -15,6 +15,7 @@ import {
   BankConnectButton,
   BankSyncButton,
 } from "@/components/bank/BankConnectButton";
+import { PlaidConnectSection } from "@/components/bank/PlaidConnectSection";
 import { TransactionList } from "@/components/bank/TransactionList";
 import { ApiErrorNotice } from "@/components/layout/ApiErrorNotice";
 import { AppShell } from "@/components/layout/AppShell";
@@ -42,6 +43,7 @@ export default async function BankPage({
   const openingCash = firstParam(params, "openingCash", "0");
   const selectedConnectionId = firstParam(params, "connection", "");
   const message = statusMessage(firstParam(params, "message", ""));
+  const isPlaidProvider = process.env.NEXT_PUBLIC_BANK_PROVIDER === "plaid";
   const connectionsResult = await listBankConnections();
   const connections = connectionsResult.data ?? [];
   const hasLinkedConnection = connections.some(
@@ -70,11 +72,17 @@ export default async function BankPage({
           <div>
             <h2 className="text-base font-semibold">Connexions</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Connexion sandbox GoCardless pour le POC bancaire.
+              {isPlaidProvider
+                ? "Connexion sandbox Plaid pour le POC bancaire."
+                : "Connexion sandbox GoCardless pour le POC bancaire."}
             </p>
           </div>
           {connections.length === 0 || !hasLinkedConnection ? (
-            <BankConnectButton />
+            isPlaidProvider ? (
+              <PlaidConnectSection />
+            ) : (
+              <BankConnectButton />
+            )
           ) : null}
         </div>
 

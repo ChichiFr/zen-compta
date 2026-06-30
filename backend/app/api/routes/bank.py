@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.schemas.bank import (
+    BankConnectionCompleteRequest,
     BankConnectionRead,
     BankConnectionStartResult,
     BankSyncResult,
@@ -53,10 +54,42 @@ def bank_callback(
     connection_id: str | None = None,
     service: BankService = Depends(get_bank_service),
 ) -> BankConnectionRead:
+    return _complete_bank_callback(
+        service,
+        ref=ref,
+        connection_id=connection_id,
+    )
+
+
+@router.post("/callback", response_model=BankConnectionRead)
+def bank_callback_post(
+    payload: BankConnectionCompleteRequest,
+    service: BankService = Depends(get_bank_service),
+) -> BankConnectionRead:
+    return _complete_bank_callback(
+        service,
+        ref=payload.ref,
+        connection_id=payload.connection_id,
+        public_token=(
+            payload.public_token
+        ),
+    )
+
+
+def _complete_bank_callback(
+    service: BankService,
+    *,
+    ref: str,
+    connection_id: str | None = None,
+    public_token: str | None = None,
+) -> BankConnectionRead:
     try:
         return service.complete_connection(
             ref,
             upstream_connection_id=connection_id,
+            public_token=(
+                public_token
+            ),
         )
     except BankConnectionNotFoundError as exc:
         raise HTTPException(

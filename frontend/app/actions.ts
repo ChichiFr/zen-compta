@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { InvoiceLineInput } from "@/types/api";
 import {
   archiveInvoice,
+  completeBankCallback,
   createInvoice,
   saveMonthlyCashFlowInputs,
   saveMonthlySales,
@@ -226,6 +227,37 @@ export async function startBankConnectionAction() {
     redirect("/bank?message=bank_connect_failed");
   }
   redirect(result.data.auth_link);
+}
+
+export async function getPlaidLinkTokenAction(): Promise<{
+  link_token: string;
+  reference: string;
+} | null> {
+  await requireAuth();
+
+  const result = await startBankConnection();
+  if (result.error || !result.data) {
+    return null;
+  }
+  const authLink = result.data.auth_link;
+  if (!authLink.startsWith("plaid-link://")) {
+    return null;
+  }
+  const link_token = authLink.replace("plaid-link://", "");
+  return { link_token, reference: result.data.connection.reference };
+}
+
+export async function completePlaidConnectionAction(
+  reference: string,
+  publicToken: string,
+): Promise<string | null> {
+  await requireAuth();
+
+  const result = await completeBankCallback(reference, undefined, publicToken);
+  if (result.error || !result.data) {
+    return null;
+  }
+  return result.data.id;
 }
 
 export async function syncBankTransactionsAction(formData: FormData) {

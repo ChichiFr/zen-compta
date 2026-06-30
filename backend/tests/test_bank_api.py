@@ -26,6 +26,7 @@ from app.services.bank_service import BankService
 
 class FakeBankAggregator(BankAggregator):
     last_session_data: dict | None = None
+    last_public_token: str | None = None
 
     def create_requisition(
         self,
@@ -47,7 +48,7 @@ class FakeBankAggregator(BankAggregator):
         session_data: dict | None = None,
     ) -> list[str]:
         FakeBankAggregator.last_session_data = session_data
-        assert requisition_id in {"fake-requisition", "powens-conn-42"}
+        assert requisition_id in {"fake-requisition", "powens-conn-42", "item-123"}
         return ["fake-account"]
 
     def get_account_metadata(
@@ -97,6 +98,10 @@ class FakeBankAggregator(BankAggregator):
                 raw_payload={"transactionId": "tx-older"},
             ),
         ]
+
+    def exchange_public_token(self, public_token: str) -> dict:
+        FakeBankAggregator.last_public_token = public_token
+        return {"access_token": "plaid-access-token", "item_id": "item-123"}
 
 
 @pytest.fixture
@@ -180,6 +185,31 @@ def test_callback_accepts_powens_connection_id(client: TestClient) -> None:
         db_connection = db.get(BankConnection, UUID(connection_id))
         assert db_connection is not None
         assert db_connection.external_requisition_id == "powens-conn-42"
+
+
+def test_callback_post_accepts_plaid_public_token(client: TestClient) -> None:
+    FakeBankAggregator.last_public_token = None
+    created = client.post("/api/bank/connect").json()
+    connection_id = created["connection"]["id"]
+    reference = _connection_reference(client, connection_id)
+
+    response = client.post(
+        "/api/bank/callback",
+        json={"ref": reference, "public_token": "public-sandbox-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "linked"
+    assert FakeBankAggregator.last_public_token == "public-sandbox-token"
+    session_factory = client.testing_session_local  # type: ignore[attr-defined]
+    with session_factory() as db:
+        db_connection = db.get(BankConnection, UUID(connection_id))
+        assert db_connection is not None
+        assert db_connection.external_requisition_id == "item-123"
+        assert db_connection.provider_session_data == {
+            "access_token": "plaid-access-token",
+            "item_id": "item-123",
+        }
 
 
 def test_provider_session_data_is_persisted_and_passed(

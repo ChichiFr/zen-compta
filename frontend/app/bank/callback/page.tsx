@@ -16,11 +16,16 @@ export default async function BankCallbackPage({
   const params = await searchParams;
   const ref = firstParam(params, "ref", "");
   const connectionId = firstParam(params, "connection_id", "");
+  const publicToken = firstParam(params, "public_token", "");
   if (!ref) {
     redirect("/bank?message=bank_callback_missing");
   }
 
-  const result = await completeBankCallback(ref, connectionId || undefined);
+  const result = await completeBankCallback(
+    ref,
+    connectionId || undefined,
+    publicToken || undefined,
+  );
   if (result.error || !result.data) {
     redirect("/bank?message=bank_callback_failed");
   }

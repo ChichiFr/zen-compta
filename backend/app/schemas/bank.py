@@ -12,6 +12,7 @@ class BankConnectionRead(BaseModel):
     provider: str
     institution_id: str
     institution_name: str
+    reference: str
     status: BankConnectionStatus
     expires_at: datetime | None
     created_at: datetime
@@ -22,6 +23,12 @@ class BankConnectionRead(BaseModel):
 class BankConnectionStartResult(BaseModel):
     connection: BankConnectionRead
     auth_link: str
+
+
+class BankConnectionCompleteRequest(BaseModel):
+    ref: str
+    connection_id: str | None = None
+    public_token: str | None = None
 
 
 class BankAccountRead(BaseModel):

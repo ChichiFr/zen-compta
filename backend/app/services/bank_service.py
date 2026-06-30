@@ -44,11 +44,16 @@ class BankService:
             reference=reference,
             redirect_uri=settings.gocardless_redirect_uri,
         )
+        institution_name = {
+            "gocardless": "GoCardless Sandbox Finance",
+            "powens": "Powens Sandbox",
+            "plaid": "Plaid Sandbox",
+        }.get(settings.bank_aggregator_provider.lower(), "Banque sandbox")
         connection = BankConnection(
             provider=settings.bank_aggregator_provider.lower(),
             external_requisition_id=result.requisition_id,
             institution_id=institution_id,
-            institution_name="GoCardless Sandbox Finance",
+            institution_name=institution_name,
             reference=reference,
             status=BankConnectionStatus.CREATED,
             expires_at=result.expires_at,
@@ -66,13 +71,20 @@ class BankService:
         reference: str,
         *,
         upstream_connection_id: str | None = None,
+        public_token: str | None = None,
     ) -> BankConnection:
         aggregator = self._require_aggregator()
         connection = self._get_connection_by_reference(reference)
         if connection.status == BankConnectionStatus.LINKED:
             # Idempotent: already linked, don't refetch accounts.
             return connection
-        if (
+        if public_token and hasattr(aggregator, "exchange_public_token"):
+            new_session = aggregator.exchange_public_token(public_token)
+            connection.provider_session_data = new_session
+            connection.external_requisition_id = new_session["item_id"]
+            self.db.commit()
+            self.db.refresh(connection)
+        elif (
             upstream_connection_id
             and upstream_connection_id != connection.external_requisition_id
         ):
