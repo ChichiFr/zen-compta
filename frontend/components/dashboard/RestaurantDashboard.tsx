@@ -8,7 +8,6 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 
-import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -53,8 +52,6 @@ const balanceEvolution = Array.from({ length: 30 }, (_, index) => {
   };
 });
 
-const periodOptions = ["Mois courant", "Mois precedent", "Annee"];
-
 const kpis = [
   {
     indicator: "up",
@@ -82,124 +79,108 @@ const kpis = [
   },
 ] as const;
 
+function DemoDataNotice() {
+  return (
+    <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <p className="font-semibold">Données de démonstration</p>
+      <p className="mt-1">
+        Les chiffres affichés ci-dessous sont fictifs, le temps que vos
+        données réelles soient connectées. Utilisez les onglets Factures,
+        Cash-flow et Banque pour saisir et consulter vos vraies données.
+      </p>
+    </div>
+  );
+}
+
 export function RestaurantDashboard() {
   return (
-    <main className="min-h-screen bg-[#f8f9fa] text-slate-950">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-5 border-b border-slate-200 pb-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-500">Zen Compta</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-normal text-slate-950">
-              Tableau de bord
-            </h1>
-          </div>
+    <div className="flex flex-col gap-8">
+      <DemoDataNotice />
 
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            <div className="flex rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
-              {periodOptions.map((option, index) => (
-                <button
-                  className={cn(
-                    "h-9 rounded-md px-3 text-sm font-medium text-slate-600 transition-colors",
-                    index === 0
-                      ? "bg-slate-950 text-white shadow-sm"
-                      : "hover:bg-slate-50 hover:text-slate-950",
-                  )}
-                  key={option}
-                  type="button"
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-            <Avatar>MR</Avatar>
-          </div>
-        </header>
+      <section className="grid auto-rows-fr gap-6 lg:grid-cols-2">
+        <MetricCard
+          action="Saisir mes ventes"
+          chart={
+            <BarChart
+              categories={["Annee N-1", "Annee en cours"]}
+              className="h-44"
+              colors={["slate", "emerald"]}
+              data={monthlySales}
+              index="month"
+              showAnimation
+              showGridLines={false}
+              showLegend={true}
+              showXAxis={true}
+              showYAxis={false}
+              yAxisWidth={0}
+            />
+          }
+          pill="+12% vs juin 2025"
+          pillTone="bg-emerald-50 text-emerald-700 ring-emerald-200"
+          subtitle="Total ventes HT du mois"
+          title="Ventes"
+          titleTone="text-emerald-600"
+          value="12 450 EUR"
+        />
 
-        <section className="grid auto-rows-fr gap-6 lg:grid-cols-2">
-          <MetricCard
-            action="Saisir mes ventes"
-            chart={
-              <BarChart
-                categories={["Annee N-1", "Annee en cours"]}
-                className="h-44"
-                colors={["slate", "emerald"]}
-                data={monthlySales}
-                index="month"
-                showAnimation
-                showGridLines={false}
-                showLegend={true}
-                showXAxis={true}
-                showYAxis={false}
-                yAxisWidth={0}
-              />
-            }
-            pill="+12% vs juin 2025"
-            pillTone="bg-emerald-50 text-emerald-700 ring-emerald-200"
-            subtitle="Total ventes HT du mois"
-            title="Ventes"
-            titleTone="text-emerald-600"
-            value="12 450 EUR"
-          />
+        <MetricCard
+          action="Importer une facture"
+          chart={
+            <BarChart
+              categories={["Annee N-1", "Annee en cours"]}
+              className="h-44"
+              colors={["slate", "rose"]}
+              data={monthlyPurchases}
+              index="month"
+              showAnimation
+              showGridLines={false}
+              showLegend={true}
+              showXAxis={true}
+              showYAxis={false}
+              yAxisWidth={0}
+            />
+          }
+          pill="+8% vs juin 2025"
+          pillTone="bg-rose-50 text-rose-700 ring-rose-200"
+          sideStats={[
+            { label: "3 a valider" },
+            { label: "1 en retard" },
+          ]}
+          subtitle="Total achats HT valides"
+          title="Achats"
+          titleTone="text-rose-600"
+          value="4 280 EUR"
+        />
 
-          <MetricCard
-            action="Importer une facture"
-            chart={
-              <BarChart
-                categories={["Annee N-1", "Annee en cours"]}
-                className="h-44"
-                colors={["slate", "rose"]}
-                data={monthlyPurchases}
-                index="month"
-                showAnimation
-                showGridLines={false}
-                showLegend={true}
-                showXAxis={true}
-                showYAxis={false}
-                yAxisWidth={0}
-              />
-            }
-            pill="+8% vs juin 2025"
-            pillTone="bg-rose-50 text-rose-700 ring-rose-200"
-            sideStats={[
-              { label: "3 a valider" },
-              { label: "1 en retard" },
-            ]}
-            subtitle="Total achats HT valides"
-            title="Achats"
-            titleTone="text-rose-600"
-            value="4 280 EUR"
-          />
+        <MetricCard
+          action="Voir les transactions"
+          chart={
+            <AreaChart
+              categories={["Solde"]}
+              className="h-36"
+              colors={["sky"]}
+              data={balanceEvolution}
+              index="day"
+              showAnimation
+              showGridLines={false}
+              showLegend={false}
+              showXAxis={false}
+              showYAxis={false}
+              yAxisWidth={0}
+            />
+          }
+          pill="+1 240 EUR depuis le 1er juin"
+          pillTone="bg-sky-50 text-sky-700 ring-sky-200"
+          sideStats={[{ label: "12 transactions a categoriser" }]}
+          subtitle="Solde estime"
+          title="Banque"
+          titleTone="text-sky-600"
+          value="8 320 EUR"
+        />
 
-          <MetricCard
-            action="Voir les transactions"
-            chart={
-              <AreaChart
-                categories={["Solde"]}
-                className="h-36"
-                colors={["sky"]}
-                data={balanceEvolution}
-                index="day"
-                showAnimation
-                showGridLines={false}
-                showLegend={false}
-                showXAxis={false}
-                showYAxis={false}
-                yAxisWidth={0}
-              />
-            }
-            pill="+1 240 EUR depuis le 1er juin"
-            pillTone="bg-sky-50 text-sky-700 ring-sky-200"
-            sideStats={[{ label: "12 transactions a categoriser" }]}
-            subtitle="Solde estime"
-            title="Banque"
-            titleTone="text-sky-600"
-            value="8 320 EUR"
-          />
-
-          <KpiCard />
-        </section>
-      </div>
-    </main>
+        <KpiCard />
+      </section>
+    </div>
   );
 }
 
