@@ -6,3 +6,4 @@ alembic==1.17.2
 psycopg[binary]==3.3.2
 python-multipart==0.0.21
 openai==2.41.0
+httpx==0.28.0

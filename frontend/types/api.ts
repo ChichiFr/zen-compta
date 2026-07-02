@@ -193,3 +193,38 @@ export type DocumentImportUpload = {
 export type ApiResult<T> =
   | { data: T; error: null }
   | { data: null; error: string };
+
+export type BankConnectionStatus = "created" | "linked" | "expired" | "revoked";
+
+export type BankConnection = {
+  id: string;
+  provider: string;
+  institution_id: string;
+  institution_name: string;
+  reference: string;
+  status: BankConnectionStatus;
+  expires_at: string | null;
+  created_at: string;
+};
+
+export type BankConnectionStartResult = {
+  connection: BankConnection;
+  auth_link: string;
+};
+
+export type BankTransaction = {
+  id: string;
+  booking_date: string;
+  value_date: string | null;
+  amount: string;
+  currency: string;
+  description: string;
+  creditor_name: string | null;
+  debtor_name: string | null;
+};
+
+export type BankSyncResult = {
+  connection_id: string;
+  new_transactions_count: number;
+  total_transactions_count: number;
+};

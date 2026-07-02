@@ -5,9 +5,12 @@ import { redirect } from "next/navigation";
 import type { InvoiceLineInput } from "@/types/api";
 import {
   archiveInvoice,
+  completeBankCallback,
   createInvoice,
   saveMonthlyCashFlowInputs,
   saveMonthlySales,
+  startBankConnection,
+  syncBankTransactions,
   updateInvoice,
   uploadDocumentImport,
   validateInvoice,
@@ -18,7 +21,13 @@ import { currentMonth, monthToDate } from "@/app/pageUtils";
 type InvoiceLineFormResult = InvoiceLineInput | "incomplete" | null;
 
 const INVOICE_FORM_LINE_NUMBERS = [1, 2, 3, 4, 5] as const;
-const ALLOWED_RETURN_PATHS = new Set(["/", "/invoices", "/cash-flow", "/forecast"]);
+const ALLOWED_RETURN_PATHS = new Set([
+  "/",
+  "/invoices",
+  "/cash-flow",
+  "/forecast",
+  "/bank",
+]);
 
 function redirectBack(formData: FormData, message: string, fallbackPath: string): never {
   const requestedReturnTo = String(formData.get("return_to") ?? fallbackPath);
@@ -208,6 +217,63 @@ export async function archiveInvoiceAction(formData: FormData) {
     result.error ? result.error : "invoice_archived",
     "/invoices",
   );
+}
+
+export async function startBankConnectionAction() {
+  await requireAuth();
+
+  const result = await startBankConnection();
+  if (result.error || !result.data) {
+    redirect("/bank?message=bank_connect_failed");
+  }
+  redirect(result.data.auth_link);
+}
+
+export async function getPlaidLinkTokenAction(): Promise<{
+  link_token: string;
+  reference: string;
+} | null> {
+  await requireAuth();
+
+  const result = await startBankConnection();
+  if (result.error || !result.data) {
+    return null;
+  }
+  const authLink = result.data.auth_link;
+  if (!authLink.startsWith("plaid-link://")) {
+    return null;
+  }
+  const link_token = authLink.replace("plaid-link://", "");
+  return { link_token, reference: result.data.connection.reference };
+}
+
+export async function completePlaidConnectionAction(
+  reference: string,
+  publicToken: string,
+): Promise<string | null> {
+  await requireAuth();
+
+  const result = await completeBankCallback(reference, undefined, publicToken);
+  if (result.error || !result.data) {
+    return null;
+  }
+  return result.data.id;
+}
+
+export async function syncBankTransactionsAction(formData: FormData) {
+  await requireAuth();
+
+  const connectionId = String(formData.get("connection_id") ?? "");
+  const period = String(formData.get("period") ?? currentMonth());
+  const openingCash = String(formData.get("opening_cash") ?? "0");
+  const result = await syncBankTransactions(connectionId);
+  const params = new URLSearchParams({
+    connection: connectionId,
+    message: result.error ? "bank_sync_failed" : "bank_synced",
+    openingCash,
+    period,
+  });
+  redirect(`/bank?${params.toString()}`);
 }
 
 export async function logoutAction() {

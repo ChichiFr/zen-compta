@@ -35,6 +35,30 @@ export function statusMessage(value: string | null): StatusMessage | null {
   if (value === "saved") {
     return { kind: "success", text: "Ventes mensuelles enregistrees." };
   }
+  if (value === "connected") {
+    return { kind: "success", text: "Banque connectee." };
+  }
+  if (value === "bank_synced") {
+    return { kind: "success", text: "Transactions bancaires synchronisees." };
+  }
+  if (value === "bank_sync_failed") {
+    return {
+      kind: "technical",
+      text: "Synchronisation bancaire impossible. Reessaie plus tard.",
+    };
+  }
+  if (value === "bank_connect_failed") {
+    return {
+      kind: "technical",
+      text: "Connexion bancaire impossible. Verifie la configuration GoCardless.",
+    };
+  }
+  if (value === "bank_callback_missing" || value === "bank_callback_failed") {
+    return {
+      kind: "technical",
+      text: "Connexion bancaire incomplete. Relance la connexion.",
+    };
+  }
   if (value === "cash_flow_inputs_saved") {
     return { kind: "success", text: "Flux mensuels enregistres." };
   }

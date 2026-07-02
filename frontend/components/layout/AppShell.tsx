@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { logoutAction } from "@/app/actions";
 
 type AppShellProps = {
-  active: "dashboard" | "invoices" | "cash-flow" | "forecast";
+  active: "dashboard" | "invoices" | "cash-flow" | "forecast" | "bank";
   children: ReactNode;
   openingCash: string;
   period: string;
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { key: "invoices", label: "Factures", href: "/invoices" },
   { key: "cash-flow", label: "Cash-flow", href: "/cash-flow" },
   { key: "forecast", label: "Prevision", href: "/forecast" },
+  { key: "bank", label: "Banque", href: "/bank" },
 ] as const;
 
 export function AppShell({
