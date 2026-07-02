@@ -1,3 +1,7 @@
+import {
+  SimpleTable,
+  type SimpleTableRow,
+} from "@/components/dashboard/SimpleTable";
 import { formatMoney, formatMonth } from "@/lib/format";
 import { noteLabel, riskClass, riskLabel, runwayLabel } from "@/lib/labels";
 import type { RunwayForecastSummary } from "@/types/api";
@@ -74,39 +78,64 @@ export function RunwayForecastResults({
         </div>
       </article>
 
-      <article className="rounded-md border border-slate-200 bg-white p-5">
-        <h2 className="text-base font-semibold">Detail mois par mois</h2>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-3 py-3">Mois</th>
-                <th className="px-3 py-3">CA</th>
-                <th className="px-3 py-3">EBE</th>
-                <th className="px-3 py-3">TVA</th>
-                <th className="px-3 py-3">Emprunts</th>
-                <th className="px-3 py-3">Cash final</th>
-                <th className="px-3 py-3">Risque</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {selectedScenario.months.map((month) => (
-                <tr key={month.month}>
-                  <td className="px-3 py-3 font-semibold">{formatMonth(month.month)}</td>
-                  <td className="px-3 py-3">{formatMoney(month.forecast_sales_ht)}</td>
-                  <td className="px-3 py-3">{formatMoney(month.ebe_forecast)}</td>
-                  <td className="px-3 py-3">{formatMoney(month.vat_payable_estimate)}</td>
-                  <td className="px-3 py-3">{formatMoney(month.loan_repayments_cash)}</td>
-                  <td className="px-3 py-3 font-semibold">{formatMoney(month.ending_cash_estimate)}</td>
-                  <td className={`px-3 py-3 font-semibold ${riskClass(month.risk_level)}`}>
-                    {riskLabel(month.risk_level)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </article>
+      <div className="grid gap-6 lg:grid-cols-2">
+        {selectedScenario.months.map((month) => {
+          const rows: SimpleTableRow[] = [
+            {
+              label: "Cash de depart",
+              value: formatMoney(month.opening_cash),
+            },
+            {
+              label: "CA HT",
+              value: formatMoney(month.forecast_sales_ht),
+              emphasis: true,
+            },
+            {
+              label: "Couts d exploitation HT",
+              value: formatMoney(month.operating_costs_ht),
+            },
+            {
+              label: "Salaires",
+              value: formatMoney(month.salaries),
+            },
+            {
+              label: "Charges sociales",
+              value: formatMoney(month.social_charges),
+            },
+            {
+              label: "EBE prevu",
+              value: formatMoney(month.ebe_forecast),
+              emphasis: true,
+            },
+            {
+              label: "TVA a payer estimee",
+              value: formatMoney(month.vat_payable_estimate),
+            },
+            {
+              label: "Remboursements emprunts",
+              value: formatMoney(month.loan_repayments_cash),
+            },
+            {
+              label: "Cash fin de mois",
+              value: formatMoney(month.ending_cash_estimate),
+              emphasis: true,
+            },
+          ];
+          return (
+            <div key={month.month}>
+              <SimpleTable
+                rows={rows}
+                title={`${formatMonth(month.month)} — ${selectedScenario.label}`}
+              />
+              <p
+                className={`mt-2 text-right text-sm font-semibold ${riskClass(month.risk_level)}`}
+              >
+                Risque : {riskLabel(month.risk_level)}
+              </p>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

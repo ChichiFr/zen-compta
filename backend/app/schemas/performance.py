@@ -29,7 +29,11 @@ class MonthlyPerformanceTable(BaseModel):
     packaging_ht: Decimal
     salaries: Decimal
     social_charges: Decimal
-    external_purchases_taxes_ht: Decimal
+    salaries_total_ht: Decimal
+    fixed_charges_ht: Decimal
+    external_purchases_ht: Decimal
+    fixed_charges_breakdown: dict[str, Decimal] = Field(default_factory=dict)
+    external_purchases_breakdown: dict[str, Decimal] = Field(default_factory=dict)
     ebe_cash: Decimal
 
 
