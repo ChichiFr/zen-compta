@@ -8,10 +8,13 @@ from app.schemas.bank import (
     BankConnectionCompleteRequest,
     BankConnectionRead,
     BankConnectionStartResult,
+    BankMatchingRunResult,
     BankSyncResult,
     BankTransactionCategoryUpdate,
+    BankTransactionMatchRequest,
     BankTransactionRead,
     BankTransactionRuleRead,
+    MatchSuggestion,
 )
 from app.services.bank_aggregator import BankAggregatorError
 from app.services.bank_service import (
@@ -20,6 +23,10 @@ from app.services.bank_service import (
     BankService,
     BankTransactionNotFoundError,
     BankTransactionRuleNotFoundError,
+)
+from app.services.invoice_transaction_matching_service import (
+    InvoiceNotMatchableError,
+    TransactionNotMatchableError,
 )
 from app.services.transaction_categorization_service import (
     DuplicateRulePatternError,
@@ -197,6 +204,70 @@ def update_bank_transaction_category(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="duplicate_rule_pattern",
+        ) from exc
+
+
+@router.post("/matching/run", response_model=BankMatchingRunResult)
+def run_bank_transaction_matching(
+    service: BankService = Depends(get_bank_service),
+) -> BankMatchingRunResult:
+    return BankMatchingRunResult(matched_count=service.run_transaction_matching())
+
+
+@router.get(
+    "/transactions/{transaction_id}/match-suggestions",
+    response_model=list[MatchSuggestion],
+)
+def get_bank_transaction_match_suggestions(
+    transaction_id: UUID,
+    service: BankService = Depends(get_bank_service),
+) -> list[MatchSuggestion]:
+    try:
+        return service.get_match_suggestions(transaction_id)
+    except BankTransactionNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail="bank_transaction_not_found"
+        ) from exc
+
+
+@router.patch(
+    "/transactions/{transaction_id}/match",
+    response_model=BankTransactionRead,
+)
+def match_bank_transaction(
+    transaction_id: UUID,
+    payload: BankTransactionMatchRequest,
+    service: BankService = Depends(get_bank_service),
+) -> BankTransactionRead:
+    try:
+        return service.match_transaction(transaction_id, payload.invoice_id)
+    except BankTransactionNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail="bank_transaction_not_found"
+        ) from exc
+    except TransactionNotMatchableError as exc:
+        raise HTTPException(
+            status_code=400, detail="transaction_not_matchable"
+        ) from exc
+    except InvoiceNotMatchableError as exc:
+        raise HTTPException(
+            status_code=400, detail="invoice_not_matchable"
+        ) from exc
+
+
+@router.delete(
+    "/transactions/{transaction_id}/match",
+    response_model=BankTransactionRead,
+)
+def unmatch_bank_transaction(
+    transaction_id: UUID,
+    service: BankService = Depends(get_bank_service),
+) -> BankTransactionRead:
+    try:
+        return service.unmatch_transaction(transaction_id)
+    except BankTransactionNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail="bank_transaction_not_found"
         ) from exc
 
 
