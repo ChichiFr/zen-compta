@@ -221,6 +221,15 @@ export type BankTransaction = {
   description: string;
   creditor_name: string | null;
   debtor_name: string | null;
+  category_code: string | null;
+  category_source: "rule" | "manual" | null;
+};
+
+export type BankTransactionRule = {
+  id: string;
+  pattern: string;
+  category_code: string;
+  created_at: string;
 };
 
 export type BankSyncResult = {

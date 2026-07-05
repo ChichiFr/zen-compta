@@ -11,6 +11,7 @@ import {
   saveMonthlySales,
   startBankConnection,
   syncBankTransactions,
+  updateBankTransactionCategory,
   updateInvoice,
   uploadDocumentImport,
   validateInvoice,
@@ -270,6 +271,38 @@ export async function syncBankTransactionsAction(formData: FormData) {
   const params = new URLSearchParams({
     connection: connectionId,
     message: result.error ? "bank_sync_failed" : "bank_synced",
+    openingCash,
+    period,
+  });
+  redirect(`/bank?${params.toString()}`);
+}
+
+export async function categorizeBankTransactionAction(formData: FormData) {
+  await requireAuth();
+
+  const transactionId = String(formData.get("transaction_id") ?? "");
+  const connectionId = String(formData.get("connection_id") ?? "");
+  const categoryCode = String(formData.get("category_code") ?? "");
+  const createRule = formData.get("create_rule") === "on";
+  const rulePattern = String(formData.get("rule_pattern") ?? "").trim();
+  const period = String(formData.get("period") ?? currentMonth());
+  const openingCash = String(formData.get("opening_cash") ?? "0");
+
+  const result = await updateBankTransactionCategory(
+    transactionId,
+    categoryCode,
+    createRule && rulePattern
+      ? { createRule: true, rulePattern }
+      : undefined,
+  );
+
+  const params = new URLSearchParams({
+    connection: connectionId,
+    message: result.error
+      ? result.error === "duplicate_rule_pattern"
+        ? "bank_rule_duplicate"
+        : "bank_categorize_failed"
+      : "transaction_categorized",
     openingCash,
     period,
   });
