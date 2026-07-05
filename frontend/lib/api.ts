@@ -3,6 +3,8 @@ import type {
   ApiResult,
   BankConnection,
   BankConnectionStartResult,
+  BankMatchingRunResult,
+  BankMatchSuggestion,
   BankSyncResult,
   BankTransaction,
   BankTransactionRule,
@@ -316,6 +318,38 @@ export async function updateBankTransactionCategory(
         rule_pattern: options?.rulePattern ?? null,
       }),
     },
+  );
+}
+
+export async function runBankMatching() {
+  return fetchJson<BankMatchingRunResult>("/bank/matching/run", {
+    method: "POST",
+  });
+}
+
+export async function getBankMatchSuggestions(transactionId: string) {
+  return fetchJson<BankMatchSuggestion[]>(
+    `/bank/transactions/${transactionId}/match-suggestions`,
+  );
+}
+
+export async function matchBankTransaction(
+  transactionId: string,
+  invoiceId: string,
+) {
+  return fetchJson<BankTransaction>(
+    `/bank/transactions/${transactionId}/match`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ invoice_id: invoiceId }),
+    },
+  );
+}
+
+export async function unmatchBankTransaction(transactionId: string) {
+  return fetchJson<BankTransaction>(
+    `/bank/transactions/${transactionId}/match`,
+    { method: "DELETE" },
   );
 }
 

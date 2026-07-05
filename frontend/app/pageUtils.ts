@@ -47,6 +47,21 @@ export function statusMessage(value: string | null): StatusMessage | null {
       text: "Synchronisation bancaire impossible. Reessaie plus tard.",
     };
   }
+  if (value === "bank_matching_done") {
+    return { kind: "success", text: "Rapprochement automatique termine." };
+  }
+  if (value === "bank_match_saved") {
+    return { kind: "success", text: "Transaction liee a la facture." };
+  }
+  if (value === "bank_match_removed") {
+    return { kind: "success", text: "Liaison supprimee." };
+  }
+  if (value === "bank_matching_failed") {
+    return {
+      kind: "technical",
+      text: "Rapprochement impossible. Reessaie plus tard.",
+    };
+  }
   if (value === "transaction_categorized") {
     return { kind: "success", text: "Transaction categorisee." };
   }
