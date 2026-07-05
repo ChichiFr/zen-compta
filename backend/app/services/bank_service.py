@@ -11,10 +11,14 @@ from app.models import (
     BankConnection,
     BankConnectionStatus,
     BankTransaction,
+    BankTransactionRule,
 )
 from app.services.bank_aggregator import (
     BankAggregator,
     build_bank_aggregator,
+)
+from app.services.transaction_categorization_service import (
+    TransactionCategorizationService,
 )
 
 
@@ -23,6 +27,14 @@ class BankAggregatorUnavailableError(Exception):
 
 
 class BankConnectionNotFoundError(Exception):
+    pass
+
+
+class BankTransactionNotFoundError(Exception):
+    pass
+
+
+class BankTransactionRuleNotFoundError(Exception):
     pass
 
 
@@ -168,6 +180,8 @@ class BankService:
         if not new_rows:
             return 0
 
+        TransactionCategorizationService(self.db).categorize_many(new_rows)
+
         self.db.add_all(new_rows)
         try:
             self.db.commit()
@@ -217,6 +231,53 @@ class BankService:
             .where(BankAccount.connection_id == connection_id)
         )
         return int(self.db.scalar(statement) or 0)
+
+    def get_transaction(self, transaction_id: uuid.UUID) -> BankTransaction:
+        transaction = self.db.get(BankTransaction, transaction_id)
+        if transaction is None:
+            raise BankTransactionNotFoundError(str(transaction_id))
+        return transaction
+
+    def update_transaction_category(
+        self,
+        transaction_id: uuid.UUID,
+        *,
+        category_code: str,
+        create_rule: bool = False,
+        rule_pattern: str | None = None,
+    ) -> BankTransaction:
+        transaction = self.get_transaction(transaction_id)
+        categorization = TransactionCategorizationService(self.db)
+        categorization.set_manual_category(transaction, category_code)
+        if create_rule and rule_pattern:
+            categorization.create_rule(rule_pattern, category_code)
+            categorization.recategorize_all()
+        self.db.commit()
+        self.db.refresh(transaction)
+        return transaction
+
+    def list_transaction_rules(self) -> list[BankTransactionRule]:
+        statement = select(BankTransactionRule).order_by(
+            BankTransactionRule.created_at.asc(),
+            BankTransactionRule.pattern.asc(),
+        )
+        return list(self.db.scalars(statement).all())
+
+    def delete_transaction_rule(self, rule_id: uuid.UUID) -> None:
+        rule = self.db.get(BankTransactionRule, rule_id)
+        if rule is None:
+            raise BankTransactionRuleNotFoundError(str(rule_id))
+        # Detach explicitly instead of relying on ON DELETE SET NULL so the
+        # behaviour is identical on SQLite (tests) and PostgreSQL.
+        linked = self.db.scalars(
+            select(BankTransaction).where(
+                BankTransaction.category_rule_id == rule.id
+            )
+        ).all()
+        for transaction in linked:
+            transaction.category_rule_id = None
+        self.db.delete(rule)
+        self.db.commit()
 
     def get_connection(self, connection_id: uuid.UUID) -> BankConnection:
         statement = (

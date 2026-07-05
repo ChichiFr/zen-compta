@@ -9,13 +9,22 @@ from app.schemas.bank import (
     BankConnectionRead,
     BankConnectionStartResult,
     BankSyncResult,
+    BankTransactionCategoryUpdate,
     BankTransactionRead,
+    BankTransactionRuleRead,
 )
 from app.services.bank_aggregator import BankAggregatorError
 from app.services.bank_service import (
     BankAggregatorUnavailableError,
     BankConnectionNotFoundError,
     BankService,
+    BankTransactionNotFoundError,
+    BankTransactionRuleNotFoundError,
+)
+from app.services.transaction_categorization_service import (
+    DuplicateRulePatternError,
+    EmptyRulePatternError,
+    UnknownCategoryError,
 )
 
 router = APIRouter(prefix="/bank", tags=["bank"])
@@ -157,4 +166,58 @@ def list_bank_transactions(
     except BankConnectionNotFoundError as exc:
         raise HTTPException(
             status_code=404, detail="bank_connection_not_found"
+        ) from exc
+
+
+@router.patch(
+    "/transactions/{transaction_id}/category",
+    response_model=BankTransactionRead,
+)
+def update_bank_transaction_category(
+    transaction_id: UUID,
+    payload: BankTransactionCategoryUpdate,
+    service: BankService = Depends(get_bank_service),
+) -> BankTransactionRead:
+    try:
+        return service.update_transaction_category(
+            transaction_id,
+            category_code=payload.category_code,
+            create_rule=payload.create_rule,
+            rule_pattern=payload.rule_pattern,
+        )
+    except BankTransactionNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail="bank_transaction_not_found"
+        ) from exc
+    except UnknownCategoryError as exc:
+        raise HTTPException(status_code=400, detail="unknown_category") from exc
+    except EmptyRulePatternError as exc:
+        raise HTTPException(status_code=400, detail="empty_rule_pattern") from exc
+    except DuplicateRulePatternError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="duplicate_rule_pattern",
+        ) from exc
+
+
+@router.get("/transaction-rules", response_model=list[BankTransactionRuleRead])
+def list_bank_transaction_rules(
+    service: BankService = Depends(get_bank_service),
+) -> list[BankTransactionRuleRead]:
+    return service.list_transaction_rules()
+
+
+@router.delete(
+    "/transaction-rules/{rule_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_bank_transaction_rule(
+    rule_id: UUID,
+    service: BankService = Depends(get_bank_service),
+) -> None:
+    try:
+        service.delete_transaction_rule(rule_id)
+    except BankTransactionRuleNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail="bank_transaction_rule_not_found"
         ) from exc

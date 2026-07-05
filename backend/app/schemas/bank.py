@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.bank import BankConnectionStatus
 
@@ -50,6 +50,23 @@ class BankTransactionRead(BaseModel):
     description: str
     creditor_name: str | None
     debtor_name: str | None
+    category_code: str | None
+    category_source: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BankTransactionCategoryUpdate(BaseModel):
+    category_code: str = Field(min_length=1, max_length=64)
+    create_rule: bool = False
+    rule_pattern: str | None = Field(default=None, max_length=255)
+
+
+class BankTransactionRuleRead(BaseModel):
+    id: UUID
+    pattern: str
+    category_code: str
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
