@@ -14,16 +14,6 @@ RECENT_WINDOW_DAYS = 180
 
 
 @dataclass(frozen=True)
-class UnmatchedDebitSummary:
-    id: UUID
-    booking_date: date
-    description: str
-    amount: Decimal
-    currency: str
-    category_code: str | None
-
-
-@dataclass(frozen=True)
 class UnpaidInvoiceSummary:
     id: UUID
     supplier_name: str
@@ -34,7 +24,6 @@ class UnpaidInvoiceSummary:
 
 @dataclass(frozen=True)
 class BankAnomaliesSummary:
-    unmatched_debits_count: int
     unpaid_invoices_count: int
 
 
@@ -44,33 +33,8 @@ class BankAnomalyService:
 
     def summary(self) -> BankAnomaliesSummary:
         return BankAnomaliesSummary(
-            unmatched_debits_count=len(self.list_unmatched_debits()),
             unpaid_invoices_count=len(self.list_unpaid_invoices()),
         )
-
-    def list_unmatched_debits(self) -> list[UnmatchedDebitSummary]:
-        """Debit transactions in the last 6 months without a matched invoice."""
-        cutoff = date.today() - timedelta(days=RECENT_WINDOW_DAYS)
-        transactions = self.db.scalars(
-            select(BankTransaction)
-            .where(
-                BankTransaction.matched_invoice_id.is_(None),
-                BankTransaction.amount < 0,
-                BankTransaction.booking_date >= cutoff,
-            )
-            .order_by(BankTransaction.booking_date.desc())
-        ).all()
-        return [
-            UnmatchedDebitSummary(
-                id=transaction.id,
-                booking_date=transaction.booking_date,
-                description=transaction.description,
-                amount=transaction.amount,
-                currency=transaction.currency,
-                category_code=transaction.category_code,
-            )
-            for transaction in transactions
-        ]
 
     def list_unpaid_invoices(self) -> list[UnpaidInvoiceSummary]:
         """Validated invoices in the last 6 months with no linked transaction."""

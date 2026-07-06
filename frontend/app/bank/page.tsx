@@ -5,7 +5,6 @@ import {
   getBankMatchSuggestions,
   listBankConnections,
   listBankTransactions,
-  listUnmatchedDebits,
   listUnmatchedInvoices,
   listUnpaidInvoices,
 } from "@/lib/api";
@@ -31,7 +30,6 @@ import { StatusMessageBanner } from "@/components/layout/StatusMessageBanner";
 import type {
   BankConnection,
   BankConnectionStatus,
-  BankUnmatchedDebit,
   BankUnpaidInvoice,
 } from "@/types/api";
 
@@ -55,11 +53,7 @@ export default async function BankPage({
   const period = firstParam(params, "period", currentMonth());
   const openingCash = firstParam(params, "openingCash", "0");
   const selectedConnectionId = firstParam(params, "connection", "");
-  const anomaliesParam = firstParam(params, "anomalies", "");
-  const anomaliesSection =
-    anomaliesParam === "debits" || anomaliesParam === "invoices"
-      ? anomaliesParam
-      : null;
+  const anomaliesActive = firstParam(params, "anomalies", "") === "invoices";
   const message = statusMessage(firstParam(params, "message", ""));
   const isPlaidProvider = process.env.NEXT_PUBLIC_BANK_PROVIDER === "plaid";
   const [connectionsResult, anomaliesSummaryResult] = await Promise.all([
@@ -90,14 +84,8 @@ export default async function BankPage({
       ])
     : [null, null];
   let anomaliesDetailError: string | null = null;
-  let unmatchedDebits: BankUnmatchedDebit[] = [];
   let unpaidInvoices: BankUnpaidInvoice[] = [];
-  if (anomaliesSection === "debits") {
-    const result = await listUnmatchedDebits();
-    anomaliesDetailError = result.error;
-    unmatchedDebits = result.data ?? [];
-  }
-  if (anomaliesSection === "invoices") {
+  if (anomaliesActive) {
     const result = await listUnpaidInvoices();
     anomaliesDetailError = result.error;
     unpaidInvoices = result.data ?? [];
@@ -156,12 +144,11 @@ export default async function BankPage({
         label="les alertes bancaires"
       />
       <AnomaliesCard
-        activeSection={anomaliesSection}
+        active={anomaliesActive}
         openingCash={openingCash}
         period={period}
         summary={
           anomaliesSummaryResult.data ?? {
-            unmatched_debits_count: 0,
             unpaid_invoices_count: 0,
           }
         }
@@ -177,15 +164,8 @@ export default async function BankPage({
             error={anomaliesDetailError}
             label="le detail des alertes bancaires"
           />
-          {anomaliesSection ? (
-            <AnomaliesDetail
-              activeSection={anomaliesSection}
-              connectionId={activeConnection.id}
-              openingCash={openingCash}
-              period={period}
-              unmatchedDebits={unmatchedDebits}
-              unpaidInvoices={unpaidInvoices}
-            />
+          {anomaliesActive ? (
+            <AnomaliesDetail invoices={unpaidInvoices} />
           ) : null}
           {matchTransaction ? (
             <MatchSuggestionsPanel

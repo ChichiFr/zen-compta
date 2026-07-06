@@ -15,7 +15,6 @@ from app.schemas.bank import (
     BankTransactionMatchRequest,
     BankTransactionRead,
     BankTransactionRuleRead,
-    BankUnmatchedDebit,
     BankUnpaidInvoice,
     MatchSuggestion,
 )
@@ -290,16 +289,6 @@ def get_bank_anomalies_summary(
     db: Session = Depends(get_db),
 ) -> BankAnomaliesSummary:
     return BankAnomalyService(db).summary()
-
-
-@router.get(
-    "/anomalies/unmatched-debits",
-    response_model=list[BankUnmatchedDebit],
-)
-def list_unmatched_debits(
-    db: Session = Depends(get_db),
-) -> list[BankUnmatchedDebit]:
-    return BankAnomalyService(db).list_unmatched_debits()
 
 
 @router.get(

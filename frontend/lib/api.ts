@@ -9,7 +9,6 @@ import type {
   BankSyncResult,
   BankTransaction,
   BankTransactionRule,
-  BankUnmatchedDebit,
   BankUnpaidInvoice,
   DashboardSummary,
   DocumentImportUpload,
@@ -342,10 +341,6 @@ export async function listUnmatchedInvoices() {
 
 export async function getBankAnomaliesSummary() {
   return fetchJson<BankAnomaliesSummary>("/bank/anomalies/summary");
-}
-
-export async function listUnmatchedDebits() {
-  return fetchJson<BankUnmatchedDebit[]>("/bank/anomalies/unmatched-debits");
 }
 
 export async function listUnpaidInvoices() {

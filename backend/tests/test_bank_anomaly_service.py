@@ -77,7 +77,6 @@ def _make_transaction(
     booking_date: date,
     external_id: str = "tx-1",
     description: str = "CB METRO",
-    category_code: str | None = None,
     matched_invoice_id: UUID | None = None,
 ) -> BankTransaction:
     transaction = BankTransaction(
@@ -87,7 +86,6 @@ def _make_transaction(
         amount=Decimal(amount),
         currency="EUR",
         description=description,
-        category_code=category_code,
         matched_invoice_id=matched_invoice_id,
     )
     db.add(transaction)
@@ -125,57 +123,7 @@ def _make_invoice(
 def test_summary_empty(db: Session) -> None:
     summary = BankAnomalyService(db).summary()
 
-    assert summary.unmatched_debits_count == 0
     assert summary.unpaid_invoices_count == 0
-
-
-def test_unmatched_debits_ignores_credits(db: Session) -> None:
-    account = _make_account(db)
-    debit = _make_transaction(
-        db,
-        account,
-        amount="-42.00",
-        booking_date=_recent_date(),
-        category_code="raw_materials_5_5",
-    )
-    _make_transaction(
-        db,
-        account,
-        amount="42.00",
-        booking_date=_recent_date(),
-        external_id="tx-credit",
-    )
-
-    debits = BankAnomalyService(db).list_unmatched_debits()
-
-    assert [summary.id for summary in debits] == [debit.id]
-    assert debits[0].category_code == "raw_materials_5_5"
-
-
-def test_unmatched_debits_ignores_matched(db: Session) -> None:
-    account = _make_account(db)
-    invoice = _make_invoice(db)
-    _make_transaction(
-        db,
-        account,
-        amount="-42.00",
-        booking_date=_recent_date(),
-        matched_invoice_id=invoice.id,
-    )
-
-    assert BankAnomalyService(db).list_unmatched_debits() == []
-
-
-def test_unmatched_debits_ignores_old(db: Session) -> None:
-    account = _make_account(db)
-    _make_transaction(
-        db,
-        account,
-        amount="-42.00",
-        booking_date=_old_date(),
-    )
-
-    assert BankAnomalyService(db).list_unmatched_debits() == []
 
 
 def test_unpaid_invoices_ignores_non_validated(db: Session) -> None:
@@ -211,19 +159,9 @@ def test_unpaid_invoices_ignores_missing_date(db: Session) -> None:
 
 
 def test_summary_returns_correct_counts(db: Session) -> None:
-    account = _make_account(db)
-    for index in range(3):
-        _make_transaction(
-            db,
-            account,
-            amount="-42.00",
-            booking_date=_recent_date(index + 1),
-            external_id=f"tx-{index}",
-        )
     for index in range(2):
         _make_invoice(db, supplier_name=f"Supplier {index}")
 
     summary = BankAnomalyService(db).summary()
 
-    assert summary.unmatched_debits_count == 3
     assert summary.unpaid_invoices_count == 2

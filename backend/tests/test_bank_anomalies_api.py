@@ -13,10 +13,6 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
 from app.models import (
-    BankAccount,
-    BankConnection,
-    BankConnectionStatus,
-    BankTransaction,
     Invoice,
     InvoiceStatus,
 )
@@ -60,49 +56,11 @@ def _recent_date(days_ago: int = 10) -> date:
     return date.today() - timedelta(days=days_ago)
 
 
-def _seed_account(db: Session) -> BankAccount:
-    connection = BankConnection(
-        provider="plaid",
-        external_requisition_id="req-1",
-        institution_id="ins-1",
-        institution_name="Banque test",
-        reference="ref-1",
-        status=BankConnectionStatus.LINKED,
-    )
-    account = BankAccount(
-        external_account_id="acc-1",
-        name="Compte courant",
-        currency="EUR",
-    )
-    connection.accounts.append(account)
-    db.add(connection)
-    db.flush()
-    return account
-
-
 def _seed(client: TestClient) -> None:
     session_local = client.testing_session_local  # type: ignore[attr-defined]
     with session_local() as db:
-        account = _seed_account(db)
         db.add_all(
             [
-                BankTransaction(
-                    account_id=account.id,
-                    external_id="tx-new",
-                    booking_date=_recent_date(2),
-                    amount=Decimal("-42.00"),
-                    currency="EUR",
-                    description="CB METRO",
-                    category_code="raw_materials_5_5",
-                ),
-                BankTransaction(
-                    account_id=account.id,
-                    external_id="tx-old",
-                    booking_date=_recent_date(12),
-                    amount=Decimal("-84.00"),
-                    currency="EUR",
-                    description="CB PROMOCASH",
-                ),
                 Invoice(
                     supplier_name="Metro",
                     invoice_date=_recent_date(1),
@@ -132,25 +90,7 @@ def test_summary_endpoint_returns_counts(client: TestClient) -> None:
     response = client.get("/api/bank/anomalies/summary")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "unmatched_debits_count": 2,
-        "unpaid_invoices_count": 2,
-    }
-
-
-def test_unmatched_debits_endpoint_returns_list(client: TestClient) -> None:
-    _seed(client)
-
-    response = client.get("/api/bank/anomalies/unmatched-debits")
-
-    assert response.status_code == 200
-    debits = response.json()
-    assert [debit["description"] for debit in debits] == [
-        "CB METRO",
-        "CB PROMOCASH",
-    ]
-    assert debits[0]["amount"] == "-42.00"
-    assert debits[0]["category_code"] == "raw_materials_5_5"
+    assert response.json() == {"unpaid_invoices_count": 2}
 
 
 def test_unpaid_invoices_endpoint_returns_list(client: TestClient) -> None:
@@ -168,16 +108,11 @@ def test_unpaid_invoices_endpoint_returns_list(client: TestClient) -> None:
     assert invoices[0]["total_ttc"] == "342.00"
 
 
-def test_anomalies_lists_are_sorted_date_desc(client: TestClient) -> None:
+def test_unpaid_invoices_are_sorted_date_desc(client: TestClient) -> None:
     _seed(client)
 
-    debits = client.get("/api/bank/anomalies/unmatched-debits").json()
     invoices = client.get("/api/bank/anomalies/unpaid-invoices").json()
 
-    assert [debit["booking_date"] for debit in debits] == sorted(
-        [debit["booking_date"] for debit in debits],
-        reverse=True,
-    )
     assert [invoice["invoice_date"] for invoice in invoices] == sorted(
         [invoice["invoice_date"] for invoice in invoices],
         reverse=True,
