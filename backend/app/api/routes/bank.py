@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.schemas.bank import (
+    BankAnomaliesSummary,
     BankConnectionCompleteRequest,
     BankConnectionRead,
     BankConnectionStartResult,
@@ -14,9 +15,12 @@ from app.schemas.bank import (
     BankTransactionMatchRequest,
     BankTransactionRead,
     BankTransactionRuleRead,
+    BankUnmatchedDebit,
+    BankUnpaidInvoice,
     MatchSuggestion,
 )
 from app.services.bank_aggregator import BankAggregatorError
+from app.services.bank_anomaly_service import BankAnomalyService
 from app.services.bank_service import (
     BankAggregatorUnavailableError,
     BankConnectionNotFoundError,
@@ -279,6 +283,33 @@ def unmatch_bank_transaction(
         raise HTTPException(
             status_code=404, detail="bank_transaction_not_found"
         ) from exc
+
+
+@router.get("/anomalies/summary", response_model=BankAnomaliesSummary)
+def get_bank_anomalies_summary(
+    db: Session = Depends(get_db),
+) -> BankAnomaliesSummary:
+    return BankAnomalyService(db).summary()
+
+
+@router.get(
+    "/anomalies/unmatched-debits",
+    response_model=list[BankUnmatchedDebit],
+)
+def list_unmatched_debits(
+    db: Session = Depends(get_db),
+) -> list[BankUnmatchedDebit]:
+    return BankAnomalyService(db).list_unmatched_debits()
+
+
+@router.get(
+    "/anomalies/unpaid-invoices",
+    response_model=list[BankUnpaidInvoice],
+)
+def list_unpaid_invoices(
+    db: Session = Depends(get_db),
+) -> list[BankUnpaidInvoice]:
+    return BankAnomalyService(db).list_unpaid_invoices()
 
 
 @router.get("/transaction-rules", response_model=list[BankTransactionRuleRead])

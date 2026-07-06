@@ -95,3 +95,25 @@ class BankSyncResult(BaseModel):
     connection_id: UUID
     new_transactions_count: int
     total_transactions_count: int
+
+
+class BankUnmatchedDebit(BaseModel):
+    id: UUID
+    booking_date: date
+    description: str
+    amount: Decimal
+    currency: str
+    category_code: str | None
+
+
+class BankUnpaidInvoice(BaseModel):
+    id: UUID
+    supplier_name: str
+    invoice_date: date | None
+    invoice_number: str | None
+    total_ttc: Decimal
+
+
+class BankAnomaliesSummary(BaseModel):
+    unmatched_debits_count: int
+    unpaid_invoices_count: int
