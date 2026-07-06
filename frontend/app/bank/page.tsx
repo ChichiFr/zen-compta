@@ -62,16 +62,10 @@ export default async function BankPage({
       : null;
   const message = statusMessage(firstParam(params, "message", ""));
   const isPlaidProvider = process.env.NEXT_PUBLIC_BANK_PROVIDER === "plaid";
-  const [connectionsResult, anomaliesSummaryResult, anomaliesDetailResult] =
-    await Promise.all([
-      listBankConnections(),
-      getBankAnomaliesSummary(),
-      anomaliesSection === "debits"
-        ? listUnmatchedDebits()
-        : anomaliesSection === "invoices"
-          ? listUnpaidInvoices()
-          : Promise.resolve(null),
-    ]);
+  const [connectionsResult, anomaliesSummaryResult] = await Promise.all([
+    listBankConnections(),
+    getBankAnomaliesSummary(),
+  ]);
   const connections = connectionsResult.data ?? [];
   const hasLinkedConnection = connections.some(
     (connection) => connection.status === "linked",
@@ -95,14 +89,19 @@ export default async function BankPage({
         showAll ? listUnmatchedInvoices() : Promise.resolve(null),
       ])
     : [null, null];
-  const unmatchedDebits =
-    anomaliesSection === "debits"
-      ? ((anomaliesDetailResult?.data ?? []) as BankUnmatchedDebit[])
-      : [];
-  const unpaidInvoices =
-    anomaliesSection === "invoices"
-      ? ((anomaliesDetailResult?.data ?? []) as BankUnpaidInvoice[])
-      : [];
+  let anomaliesDetailError: string | null = null;
+  let unmatchedDebits: BankUnmatchedDebit[] = [];
+  let unpaidInvoices: BankUnpaidInvoice[] = [];
+  if (anomaliesSection === "debits") {
+    const result = await listUnmatchedDebits();
+    anomaliesDetailError = result.error;
+    unmatchedDebits = result.data ?? [];
+  }
+  if (anomaliesSection === "invoices") {
+    const result = await listUnpaidInvoices();
+    anomaliesDetailError = result.error;
+    unpaidInvoices = result.data ?? [];
+  }
 
   return (
     <AppShell
@@ -173,6 +172,10 @@ export default async function BankPage({
           <ApiErrorNotice
             error={transactionsResult.error}
             label="les transactions bancaires"
+          />
+          <ApiErrorNotice
+            error={anomaliesDetailError}
+            label="le detail des alertes bancaires"
           />
           {anomaliesSection ? (
             <AnomaliesDetail
