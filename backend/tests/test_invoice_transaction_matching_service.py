@@ -330,6 +330,43 @@ def test_match_manually_rejects_credit_transaction(db: Session) -> None:
         )
 
 
+def test_list_unmatched_invoices_returns_all_validated_unlinked(
+    db: Session,
+) -> None:
+    account = _make_account(db)
+    recent = _make_invoice(
+        db, supplier_name="Recent", invoice_date=date(2026, 6, 20)
+    )
+    old = _make_invoice(
+        db, supplier_name="Old", invoice_date=date(2026, 1, 5)
+    )
+    draft = _make_invoice(
+        db,
+        supplier_name="Draft",
+        invoice_date=date(2026, 6, 1),
+        status=InvoiceStatus.NEEDS_REVIEW,
+    )
+    already_linked = _make_invoice(
+        db, supplier_name="Linked", invoice_date=date(2026, 6, 10)
+    )
+    transaction = _make_transaction(
+        db,
+        account,
+        amount="-342.00",
+        booking_date=date(2026, 6, 12),
+    )
+    InvoiceTransactionMatchingService(db).match_manually(
+        transaction, already_linked.id
+    )
+
+    invoices = InvoiceTransactionMatchingService(db).list_unmatched_invoices()
+
+    ids = [invoice.id for invoice in invoices]
+    assert ids == [recent.id, old.id]
+    assert draft.id not in ids
+    assert already_linked.id not in ids
+
+
 def test_unmatch_clears_link(db: Session) -> None:
     account = _make_account(db)
     invoice = _make_invoice(db)

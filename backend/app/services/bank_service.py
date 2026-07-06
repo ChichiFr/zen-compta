@@ -279,6 +279,9 @@ class BankService:
         transaction = self.get_transaction(transaction_id)
         return InvoiceTransactionMatchingService(self.db).suggestions(transaction)
 
+    def list_unmatched_invoices(self) -> list[Invoice]:
+        return InvoiceTransactionMatchingService(self.db).list_unmatched_invoices()
+
     def match_transaction(
         self, transaction_id: uuid.UUID, invoice_id: uuid.UUID
     ) -> BankTransaction:

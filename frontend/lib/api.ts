@@ -333,6 +333,10 @@ export async function getBankMatchSuggestions(transactionId: string) {
   );
 }
 
+export async function listUnmatchedInvoices() {
+  return fetchJson<BankMatchSuggestion[]>("/bank/matching/unmatched-invoices");
+}
+
 export async function matchBankTransaction(
   transactionId: string,
   invoiceId: string,

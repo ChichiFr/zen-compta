@@ -125,6 +125,36 @@ class InvoiceTransactionMatchingService:
         candidates.sort(key=lambda item: item[0])
         return [invoice for _, invoice in candidates]
 
+    def list_unmatched_invoices(self, limit: int = 100) -> list[Invoice]:
+        """Return every validated invoice not yet linked to a transaction.
+
+        Sorted by invoice_date descending so the most recent invoices show
+        first — that's the usual case when the user is hunting for the
+        invoice that matches a payment they just saw on the bank feed.
+        """
+        matched_ids = set(
+            self.db.scalars(
+                select(BankTransaction.matched_invoice_id).where(
+                    BankTransaction.matched_invoice_id.is_not(None)
+                )
+            ).all()
+        )
+        statement = (
+            select(Invoice)
+            .where(
+                Invoice.status == InvoiceStatus.VALIDATED,
+            )
+            .order_by(
+                Invoice.invoice_date.desc().nulls_last(),
+                Invoice.supplier_name.asc(),
+            )
+        )
+        return [
+            invoice
+            for invoice in self.db.scalars(statement).all()
+            if invoice.id not in matched_ids
+        ][:limit]
+
     def match_manually(
         self,
         transaction: BankTransaction,
@@ -137,10 +167,12 @@ class InvoiceTransactionMatchingService:
             raise InvoiceNotMatchableError(str(invoice_id))
         transaction.matched_invoice_id = invoice.id
         transaction.match_source = "manual"
+        self.db.flush()
 
     def unmatch(self, transaction: BankTransaction) -> None:
         transaction.matched_invoice_id = None
         transaction.match_source = None
+        self.db.flush()
 
 
 def _within_auto_window(

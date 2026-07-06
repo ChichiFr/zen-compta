@@ -164,6 +164,32 @@ def test_manual_match_rejects_unknown_invoice(client: TestClient) -> None:
     assert response.json()["detail"] == "invoice_not_matchable"
 
 
+def test_list_unmatched_invoices_returns_available_ones(
+    client: TestClient,
+) -> None:
+    _seed(client)
+    session_local = client.testing_session_local  # type: ignore[attr-defined]
+    with session_local() as db:
+        db.add(
+            Invoice(
+                supplier_name="Sysco",
+                invoice_date=date(2026, 4, 1),
+                status=InvoiceStatus.VALIDATED,
+                total_ht=Decimal("100.00"),
+                total_tva=Decimal("20.00"),
+                total_ttc=Decimal("120.00"),
+            )
+        )
+        db.commit()
+
+    response = client.get("/api/bank/matching/unmatched-invoices")
+
+    assert response.status_code == 200
+    invoices = response.json()
+    suppliers = [invoice["supplier_name"] for invoice in invoices]
+    assert set(suppliers) == {"Metro", "Sysco"}
+
+
 def test_match_missing_transaction_returns_404(client: TestClient) -> None:
     _seed(client)
 

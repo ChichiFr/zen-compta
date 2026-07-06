@@ -4,6 +4,7 @@ import {
   getBankMatchSuggestions,
   listBankConnections,
   listBankTransactions,
+  listUnmatchedInvoices,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/session";
 import {
@@ -63,9 +64,13 @@ export default async function BankPage({
     (transactionsResult.data ?? []).find(
       (transaction) => transaction.id === matchTransactionId,
     ) ?? null;
-  const suggestionsResult = matchTransaction
-    ? await getBankMatchSuggestions(matchTransaction.id)
-    : null;
+  const showAll = firstParam(params, "matchAll", "") === "1";
+  const [suggestionsResult, allInvoicesResult] = matchTransaction
+    ? await Promise.all([
+        getBankMatchSuggestions(matchTransaction.id),
+        showAll ? listUnmatchedInvoices() : Promise.resolve(null),
+      ])
+    : [null, null];
 
   return (
     <AppShell
@@ -123,9 +128,11 @@ export default async function BankPage({
           />
           {matchTransaction ? (
             <MatchSuggestionsPanel
+              allInvoices={allInvoicesResult?.data ?? null}
               connectionId={activeConnection.id}
               openingCash={openingCash}
               period={period}
+              showAll={showAll}
               suggestions={suggestionsResult?.data ?? []}
               transaction={matchTransaction}
             />

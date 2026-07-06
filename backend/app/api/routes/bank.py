@@ -230,6 +230,16 @@ def get_bank_transaction_match_suggestions(
         ) from exc
 
 
+@router.get(
+    "/matching/unmatched-invoices",
+    response_model=list[MatchSuggestion],
+)
+def list_unmatched_invoices(
+    service: BankService = Depends(get_bank_service),
+) -> list[MatchSuggestion]:
+    return service.list_unmatched_invoices()
+
+
 @router.patch(
     "/transactions/{transaction_id}/match",
     response_model=BankTransactionRead,
