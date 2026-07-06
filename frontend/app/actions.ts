@@ -9,8 +9,11 @@ import {
   createInvoice,
   saveMonthlyCashFlowInputs,
   saveMonthlySales,
+  matchBankTransaction,
+  runBankMatching,
   startBankConnection,
   syncBankTransactions,
+  unmatchBankTransaction,
   updateBankTransactionCategory,
   updateInvoice,
   uploadDocumentImport,
@@ -303,6 +306,57 @@ export async function categorizeBankTransactionAction(formData: FormData) {
         ? "bank_rule_duplicate"
         : "bank_categorize_failed"
       : "transaction_categorized",
+    openingCash,
+    period,
+  });
+  redirect(`/bank?${params.toString()}`);
+}
+
+export async function runBankMatchingAction(formData: FormData) {
+  await requireAuth();
+
+  const connectionId = String(formData.get("connection_id") ?? "");
+  const period = String(formData.get("period") ?? currentMonth());
+  const openingCash = String(formData.get("opening_cash") ?? "0");
+  const result = await runBankMatching();
+  const params = new URLSearchParams({
+    connection: connectionId,
+    message: result.error ? "bank_matching_failed" : "bank_matching_done",
+    openingCash,
+    period,
+  });
+  redirect(`/bank?${params.toString()}`);
+}
+
+export async function matchBankTransactionAction(formData: FormData) {
+  await requireAuth();
+
+  const transactionId = String(formData.get("transaction_id") ?? "");
+  const invoiceId = String(formData.get("invoice_id") ?? "");
+  const connectionId = String(formData.get("connection_id") ?? "");
+  const period = String(formData.get("period") ?? currentMonth());
+  const openingCash = String(formData.get("opening_cash") ?? "0");
+  const result = await matchBankTransaction(transactionId, invoiceId);
+  const params = new URLSearchParams({
+    connection: connectionId,
+    message: result.error ? "bank_matching_failed" : "bank_match_saved",
+    openingCash,
+    period,
+  });
+  redirect(`/bank?${params.toString()}`);
+}
+
+export async function unmatchBankTransactionAction(formData: FormData) {
+  await requireAuth();
+
+  const transactionId = String(formData.get("transaction_id") ?? "");
+  const connectionId = String(formData.get("connection_id") ?? "");
+  const period = String(formData.get("period") ?? currentMonth());
+  const openingCash = String(formData.get("opening_cash") ?? "0");
+  const result = await unmatchBankTransaction(transactionId);
+  const params = new URLSearchParams({
+    connection: connectionId,
+    message: result.error ? "bank_matching_failed" : "bank_match_removed",
     openingCash,
     period,
   });

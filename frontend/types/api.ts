@@ -223,6 +223,20 @@ export type BankTransaction = {
   debtor_name: string | null;
   category_code: string | null;
   category_source: "rule" | "manual" | null;
+  matched_invoice_id: string | null;
+  match_source: "auto" | "manual" | null;
+};
+
+export type BankMatchSuggestion = {
+  id: string;
+  supplier_name: string;
+  invoice_date: string | null;
+  invoice_number: string | null;
+  total_ttc: string;
+};
+
+export type BankMatchingRunResult = {
+  matched_count: number;
 };
 
 export type BankTransactionRule = {

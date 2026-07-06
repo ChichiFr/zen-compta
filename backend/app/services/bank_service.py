@@ -13,9 +13,13 @@ from app.models import (
     BankTransaction,
     BankTransactionRule,
 )
+from app.models.invoice import Invoice
 from app.services.bank_aggregator import (
     BankAggregator,
     build_bank_aggregator,
+)
+from app.services.invoice_transaction_matching_service import (
+    InvoiceTransactionMatchingService,
 )
 from app.services.transaction_categorization_service import (
     TransactionCategorizationService,
@@ -189,8 +193,16 @@ class BankService:
             # Race against a concurrent sync: fall back to per-row inserts so
             # we still persist what we can and skip true duplicates.
             self.db.rollback()
-            return self._insert_transactions_one_by_one(new_rows)
+            inserted = self._insert_transactions_one_by_one(new_rows)
+            self._auto_match_transactions()
+            return inserted
+        self._auto_match_transactions()
         return len(new_rows)
+
+    def _auto_match_transactions(self) -> None:
+        matched = InvoiceTransactionMatchingService(self.db).auto_match_all()
+        if matched:
+            self.db.commit()
 
     def _insert_transactions_one_by_one(
         self, rows: list[BankTransaction]
@@ -252,6 +264,38 @@ class BankService:
         if create_rule and rule_pattern:
             categorization.create_rule(rule_pattern, category_code)
             categorization.recategorize_all()
+        self.db.commit()
+        self.db.refresh(transaction)
+        return transaction
+
+    def run_transaction_matching(self) -> int:
+        matched = InvoiceTransactionMatchingService(self.db).auto_match_all()
+        self.db.commit()
+        return matched
+
+    def get_match_suggestions(
+        self, transaction_id: uuid.UUID
+    ) -> list[Invoice]:
+        transaction = self.get_transaction(transaction_id)
+        return InvoiceTransactionMatchingService(self.db).suggestions(transaction)
+
+    def list_unmatched_invoices(self) -> list[Invoice]:
+        return InvoiceTransactionMatchingService(self.db).list_unmatched_invoices()
+
+    def match_transaction(
+        self, transaction_id: uuid.UUID, invoice_id: uuid.UUID
+    ) -> BankTransaction:
+        transaction = self.get_transaction(transaction_id)
+        InvoiceTransactionMatchingService(self.db).match_manually(
+            transaction, invoice_id
+        )
+        self.db.commit()
+        self.db.refresh(transaction)
+        return transaction
+
+    def unmatch_transaction(self, transaction_id: uuid.UUID) -> BankTransaction:
+        transaction = self.get_transaction(transaction_id)
+        InvoiceTransactionMatchingService(self.db).unmatch(transaction)
         self.db.commit()
         self.db.refresh(transaction)
         return transaction

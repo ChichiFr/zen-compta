@@ -132,6 +132,12 @@ class BankTransaction(Base):
         ForeignKey("bank_transaction_rules.id", ondelete="SET NULL"),
         nullable=True,
     )
+    matched_invoice_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("invoices.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    match_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

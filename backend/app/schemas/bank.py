@@ -52,6 +52,26 @@ class BankTransactionRead(BaseModel):
     debtor_name: str | None
     category_code: str | None
     category_source: str | None
+    matched_invoice_id: UUID | None
+    match_source: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BankMatchingRunResult(BaseModel):
+    matched_count: int
+
+
+class BankTransactionMatchRequest(BaseModel):
+    invoice_id: UUID
+
+
+class MatchSuggestion(BaseModel):
+    id: UUID
+    supplier_name: str
+    invoice_date: date | None
+    invoice_number: str | None
+    total_ttc: Decimal
 
     model_config = ConfigDict(from_attributes=True)
 

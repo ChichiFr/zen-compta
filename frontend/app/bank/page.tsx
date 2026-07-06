@@ -1,8 +1,10 @@
 import Link from "next/link";
 
 import {
+  getBankMatchSuggestions,
   listBankConnections,
   listBankTransactions,
+  listUnmatchedInvoices,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/session";
 import {
@@ -15,6 +17,7 @@ import {
   BankConnectButton,
   BankSyncButton,
 } from "@/components/bank/BankConnectButton";
+import { MatchSuggestionsPanel } from "@/components/bank/MatchSuggestionsPanel";
 import { PlaidConnectSection } from "@/components/bank/PlaidConnectSection";
 import { TransactionList } from "@/components/bank/TransactionList";
 import { ApiErrorNotice } from "@/components/layout/ApiErrorNotice";
@@ -56,6 +59,18 @@ export default async function BankPage({
   const transactionsResult = activeConnection?.status === "linked"
     ? await listBankTransactions(activeConnection.id)
     : { data: [], error: null };
+  const matchTransactionId = firstParam(params, "match", "");
+  const matchTransaction =
+    (transactionsResult.data ?? []).find(
+      (transaction) => transaction.id === matchTransactionId,
+    ) ?? null;
+  const showAll = firstParam(params, "matchAll", "") === "1";
+  const [suggestionsResult, allInvoicesResult] = matchTransaction
+    ? await Promise.all([
+        getBankMatchSuggestions(matchTransaction.id),
+        showAll ? listUnmatchedInvoices() : Promise.resolve(null),
+      ])
+    : [null, null];
 
   return (
     <AppShell
@@ -111,6 +126,17 @@ export default async function BankPage({
             error={transactionsResult.error}
             label="les transactions bancaires"
           />
+          {matchTransaction ? (
+            <MatchSuggestionsPanel
+              allInvoices={allInvoicesResult?.data ?? null}
+              connectionId={activeConnection.id}
+              openingCash={openingCash}
+              period={period}
+              showAll={showAll}
+              suggestions={suggestionsResult?.data ?? []}
+              transaction={matchTransaction}
+            />
+          ) : null}
           <TransactionList
             connectionId={activeConnection.id}
             openingCash={openingCash}
