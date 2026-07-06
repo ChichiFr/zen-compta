@@ -124,6 +124,14 @@ class BankTransaction(Base):
     creditor_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     debtor_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     raw_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    category_code: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    category_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    category_rule_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("bank_transaction_rules.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

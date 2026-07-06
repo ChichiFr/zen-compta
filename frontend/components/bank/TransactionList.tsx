@@ -1,8 +1,17 @@
+import { invoiceCategoryLabel } from "@/lib/invoiceCategories";
 import type { BankTransaction } from "@/types/api";
 
+import { CategorizeTransactionButton } from "./CategorizeTransactionButton";
+
 export function TransactionList({
+  connectionId,
+  openingCash,
+  period,
   transactions,
 }: {
+  connectionId: string;
+  openingCash: string;
+  period: string;
   transactions: BankTransaction[];
 }) {
   if (transactions.length === 0) {
@@ -22,11 +31,12 @@ export function TransactionList({
         <h2 className="text-base font-semibold">Transactions</h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[680px] text-left text-sm">
+        <table className="w-full min-w-[820px] text-left text-sm">
           <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
             <tr>
               <th className="px-5 py-3">Date</th>
               <th className="px-5 py-3">Description</th>
+              <th className="px-5 py-3">Categorie</th>
               <th className="px-5 py-3 text-right">Montant</th>
             </tr>
           </thead>
@@ -49,6 +59,33 @@ export function TransactionList({
                         {counterparty}
                       </p>
                     ) : null}
+                  </td>
+                  <td className="px-5 py-3">
+                    {transaction.category_code ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-medium text-slate-700">
+                          {invoiceCategoryLabel(transaction.category_code)}
+                        </span>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                            transaction.category_source === "manual"
+                              ? "bg-sky-100 text-sky-700"
+                              : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {transaction.category_source === "manual"
+                            ? "manuel"
+                            : "auto"}
+                        </span>
+                      </div>
+                    ) : (
+                      <CategorizeTransactionButton
+                        connectionId={connectionId}
+                        openingCash={openingCash}
+                        period={period}
+                        transaction={transaction}
+                      />
+                    )}
                   </td>
                   <td
                     className={`whitespace-nowrap px-5 py-3 text-right font-semibold ${

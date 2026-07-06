@@ -47,6 +47,21 @@ export function statusMessage(value: string | null): StatusMessage | null {
       text: "Synchronisation bancaire impossible. Reessaie plus tard.",
     };
   }
+  if (value === "transaction_categorized") {
+    return { kind: "success", text: "Transaction categorisee." };
+  }
+  if (value === "bank_rule_duplicate") {
+    return {
+      kind: "review",
+      text: "Une regle avec ce motif existe deja. Reessaie sans creer de regle.",
+    };
+  }
+  if (value === "bank_categorize_failed") {
+    return {
+      kind: "technical",
+      text: "Categorisation impossible. Reessaie plus tard.",
+    };
+  }
   if (value === "bank_connect_failed") {
     return {
       kind: "technical",

@@ -5,6 +5,7 @@ import type {
   BankConnectionStartResult,
   BankSyncResult,
   BankTransaction,
+  BankTransactionRule,
   DashboardSummary,
   DocumentImportUpload,
   Invoice,
@@ -80,6 +81,9 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult
       return { data: null, error: `api_error_${response.status}` };
     }
 
+    if (response.status === 204) {
+      return { data: null as T, error: null };
+    }
     return { data: (await response.json()) as T, error: null };
   } catch {
     return { data: null, error: "backend_unavailable" };
@@ -295,4 +299,32 @@ export async function listBankTransactions(connectionId: string) {
   return fetchJson<BankTransaction[]>(
     `/bank/connections/${connectionId}/transactions`,
   );
+}
+
+export async function updateBankTransactionCategory(
+  transactionId: string,
+  categoryCode: string,
+  options?: { createRule?: boolean; rulePattern?: string },
+) {
+  return fetchJson<BankTransaction>(
+    `/bank/transactions/${transactionId}/category`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        category_code: categoryCode,
+        create_rule: options?.createRule ?? false,
+        rule_pattern: options?.rulePattern ?? null,
+      }),
+    },
+  );
+}
+
+export async function listBankTransactionRules() {
+  return fetchJson<BankTransactionRule[]>("/bank/transaction-rules");
+}
+
+export async function deleteBankTransactionRule(ruleId: string) {
+  return fetchJson<null>(`/bank/transaction-rules/${ruleId}`, {
+    method: "DELETE",
+  });
 }

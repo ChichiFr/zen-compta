@@ -14,6 +14,10 @@ export const INVOICE_CATEGORIES = [
   ["business_meals", "REPAS PROFESSIONNEL"],
   ["tips_donations", "POURBOIRE DONS COURANTS"],
   ["point_of_sale_advertising", "PUB. SUR POINT DE VENTE"],
+  ["rent", "LOYER"],
+  ["electricity", "ELECTRICITE"],
+  ["water", "EAU"],
+  ["gas", "GAZ"],
   ["other", "AUTRE"],
 ] as const;
 

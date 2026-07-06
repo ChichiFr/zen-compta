@@ -14,7 +14,12 @@ from app.core.config import settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
-from app.models import BankAccount, BankConnection, BankTransaction  # noqa: F401
+from app.models import (  # noqa: F401
+    BankAccount,
+    BankConnection,
+    BankTransaction,
+    BankTransactionRule,
+)
 from app.services.bank_aggregator import (
     AccountInfo,
     BankAggregator,
@@ -294,6 +299,32 @@ def test_list_transactions_returns_descending_dates(client: TestClient) -> None:
         "2026-06-01",
     ]
     assert transactions[0]["description"] == "VIREMENT CLIENT"
+
+
+def test_sync_transactions_applies_categorization_rules(
+    client: TestClient,
+) -> None:
+    session_factory = client.testing_session_local  # type: ignore[attr-defined]
+    with session_factory() as db:
+        db.add(
+            BankTransactionRule(
+                pattern="FOURNISSEUR",
+                category_code="raw_materials_5_5",
+            )
+        )
+        db.commit()
+    connection_id = _linked_connection_id(client)
+
+    client.post(f"/api/bank/connections/{connection_id}/sync")
+
+    response = client.get(f"/api/bank/connections/{connection_id}/transactions")
+    transactions = {tx["description"]: tx for tx in response.json()}
+    categorized = transactions["CB FOURNISSEUR"]
+    assert categorized["category_code"] == "raw_materials_5_5"
+    assert categorized["category_source"] == "rule"
+    uncategorized = transactions["VIREMENT CLIENT"]
+    assert uncategorized["category_code"] is None
+    assert uncategorized["category_source"] is None
 
 
 def _linked_connection_id(client: TestClient) -> str:

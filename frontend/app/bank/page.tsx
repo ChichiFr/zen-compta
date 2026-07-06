@@ -111,7 +111,12 @@ export default async function BankPage({
             error={transactionsResult.error}
             label="les transactions bancaires"
           />
-          <TransactionList transactions={transactionsResult.data ?? []} />
+          <TransactionList
+            connectionId={activeConnection.id}
+            openingCash={openingCash}
+            period={period}
+            transactions={transactionsResult.data ?? []}
+          />
         </>
       ) : activeConnection ? (
         <section className="rounded-md border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
