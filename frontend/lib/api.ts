@@ -1,6 +1,7 @@
 import { internalApiToken } from "@/lib/session";
 import type {
   ApiResult,
+  BankAnomaliesSummary,
   BankConnection,
   BankConnectionStartResult,
   BankMatchingRunResult,
@@ -8,6 +9,8 @@ import type {
   BankSyncResult,
   BankTransaction,
   BankTransactionRule,
+  BankUnmatchedDebit,
+  BankUnpaidInvoice,
   DashboardSummary,
   DocumentImportUpload,
   Invoice,
@@ -335,6 +338,18 @@ export async function getBankMatchSuggestions(transactionId: string) {
 
 export async function listUnmatchedInvoices() {
   return fetchJson<BankMatchSuggestion[]>("/bank/matching/unmatched-invoices");
+}
+
+export async function getBankAnomaliesSummary() {
+  return fetchJson<BankAnomaliesSummary>("/bank/anomalies/summary");
+}
+
+export async function listUnmatchedDebits() {
+  return fetchJson<BankUnmatchedDebit[]>("/bank/anomalies/unmatched-debits");
+}
+
+export async function listUnpaidInvoices() {
+  return fetchJson<BankUnpaidInvoice[]>("/bank/anomalies/unpaid-invoices");
 }
 
 export async function matchBankTransaction(

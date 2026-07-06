@@ -1,10 +1,13 @@
 import Link from "next/link";
 
 import {
+  getBankAnomaliesSummary,
   getBankMatchSuggestions,
   listBankConnections,
   listBankTransactions,
+  listUnmatchedDebits,
   listUnmatchedInvoices,
+  listUnpaidInvoices,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/session";
 import {
@@ -17,13 +20,20 @@ import {
   BankConnectButton,
   BankSyncButton,
 } from "@/components/bank/BankConnectButton";
+import { AnomaliesCard } from "@/components/bank/AnomaliesCard";
+import { AnomaliesDetail } from "@/components/bank/AnomaliesDetail";
 import { MatchSuggestionsPanel } from "@/components/bank/MatchSuggestionsPanel";
 import { PlaidConnectSection } from "@/components/bank/PlaidConnectSection";
 import { TransactionList } from "@/components/bank/TransactionList";
 import { ApiErrorNotice } from "@/components/layout/ApiErrorNotice";
 import { AppShell } from "@/components/layout/AppShell";
 import { StatusMessageBanner } from "@/components/layout/StatusMessageBanner";
-import type { BankConnection, BankConnectionStatus } from "@/types/api";
+import type {
+  BankConnection,
+  BankConnectionStatus,
+  BankUnmatchedDebit,
+  BankUnpaidInvoice,
+} from "@/types/api";
 
 export const dynamic = "force-dynamic";
 
@@ -45,9 +55,23 @@ export default async function BankPage({
   const period = firstParam(params, "period", currentMonth());
   const openingCash = firstParam(params, "openingCash", "0");
   const selectedConnectionId = firstParam(params, "connection", "");
+  const anomaliesParam = firstParam(params, "anomalies", "");
+  const anomaliesSection =
+    anomaliesParam === "debits" || anomaliesParam === "invoices"
+      ? anomaliesParam
+      : null;
   const message = statusMessage(firstParam(params, "message", ""));
   const isPlaidProvider = process.env.NEXT_PUBLIC_BANK_PROVIDER === "plaid";
-  const connectionsResult = await listBankConnections();
+  const [connectionsResult, anomaliesSummaryResult, anomaliesDetailResult] =
+    await Promise.all([
+      listBankConnections(),
+      getBankAnomaliesSummary(),
+      anomaliesSection === "debits"
+        ? listUnmatchedDebits()
+        : anomaliesSection === "invoices"
+          ? listUnpaidInvoices()
+          : Promise.resolve(null),
+    ]);
   const connections = connectionsResult.data ?? [];
   const hasLinkedConnection = connections.some(
     (connection) => connection.status === "linked",
@@ -71,6 +95,14 @@ export default async function BankPage({
         showAll ? listUnmatchedInvoices() : Promise.resolve(null),
       ])
     : [null, null];
+  const unmatchedDebits =
+    anomaliesSection === "debits"
+      ? ((anomaliesDetailResult?.data ?? []) as BankUnmatchedDebit[])
+      : [];
+  const unpaidInvoices =
+    anomaliesSection === "invoices"
+      ? ((anomaliesDetailResult?.data ?? []) as BankUnpaidInvoice[])
+      : [];
 
   return (
     <AppShell
@@ -120,12 +152,38 @@ export default async function BankPage({
         )}
       </section>
 
+      <ApiErrorNotice
+        error={anomaliesSummaryResult.error}
+        label="les alertes bancaires"
+      />
+      <AnomaliesCard
+        activeSection={anomaliesSection}
+        openingCash={openingCash}
+        period={period}
+        summary={
+          anomaliesSummaryResult.data ?? {
+            unmatched_debits_count: 0,
+            unpaid_invoices_count: 0,
+          }
+        }
+      />
+
       {activeConnection?.status === "linked" ? (
         <>
           <ApiErrorNotice
             error={transactionsResult.error}
             label="les transactions bancaires"
           />
+          {anomaliesSection ? (
+            <AnomaliesDetail
+              activeSection={anomaliesSection}
+              connectionId={activeConnection.id}
+              openingCash={openingCash}
+              period={period}
+              unmatchedDebits={unmatchedDebits}
+              unpaidInvoices={unpaidInvoices}
+            />
+          ) : null}
           {matchTransaction ? (
             <MatchSuggestionsPanel
               allInvoices={allInvoicesResult?.data ?? null}

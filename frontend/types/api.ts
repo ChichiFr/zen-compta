@@ -239,6 +239,28 @@ export type BankMatchingRunResult = {
   matched_count: number;
 };
 
+export type BankAnomaliesSummary = {
+  unmatched_debits_count: number;
+  unpaid_invoices_count: number;
+};
+
+export type BankUnmatchedDebit = {
+  id: string;
+  booking_date: string;
+  description: string;
+  amount: string;
+  currency: string;
+  category_code: string | null;
+};
+
+export type BankUnpaidInvoice = {
+  id: string;
+  supplier_name: string;
+  invoice_date: string | null;
+  invoice_number: string | null;
+  total_ttc: string;
+};
+
 export type BankTransactionRule = {
   id: string;
   pattern: string;
