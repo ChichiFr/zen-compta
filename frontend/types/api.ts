@@ -243,6 +243,28 @@ export type BankAnomaliesSummary = {
   unpaid_invoices_count: number;
 };
 
+export type HomeMonthlyPoint = {
+  month: string;
+  sales_ht: string;
+  sales_prior_ht: string | null;
+  purchases_ht: string;
+  purchases_prior_ht: string | null;
+};
+
+export type HomeBankFlowPoint = {
+  day: string;
+  cumulative_flow: string;
+};
+
+export type HomeDashboardSummary = {
+  period_start: string;
+  monthly_series: HomeMonthlyPoint[];
+  bank_connected: boolean;
+  bank_flow: HomeBankFlowPoint[];
+  bank_net_flow: string;
+  unpaid_invoices_count: number;
+};
+
 export type BankUnpaidInvoice = {
   id: string;
   supplier_name: string;

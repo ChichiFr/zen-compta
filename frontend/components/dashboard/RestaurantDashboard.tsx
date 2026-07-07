@@ -1,191 +1,331 @@
 "use client";
 
+import Link from "next/link";
 import { AreaChart, BarChart } from "@tremor/react";
 import {
+  ArrowDownRight,
   ArrowUpRight,
   CheckCircle2,
   Minus,
-  MoreHorizontal,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type {
+  DashboardSummary,
+  HomeDashboardSummary,
+  MonthlyPerformanceSummary,
+} from "@/types/api";
 
-const monthlySales = [
-  { month: "Jul", "Annee N-1": 5800, "Annee en cours": 7200 },
-  { month: "Aou", "Annee N-1": 6400, "Annee en cours": 8300 },
-  { month: "Sep", "Annee N-1": 7100, "Annee en cours": 9100 },
-  { month: "Oct", "Annee N-1": 7050, "Annee en cours": 8600 },
-  { month: "Nov", "Annee N-1": 7800, "Annee en cours": 9400 },
-  { month: "Dec", "Annee N-1": 9300, "Annee en cours": 11200 },
-  { month: "Jan", "Annee N-1": 8200, "Annee en cours": 9800 },
-  { month: "Fev", "Annee N-1": 8400, "Annee en cours": 10100 },
-  { month: "Mar", "Annee N-1": 9100, "Annee en cours": 10900 },
-  { month: "Avr", "Annee N-1": 9600, "Annee en cours": 11600 },
-  { month: "Mai", "Annee N-1": 10000, "Annee en cours": 12100 },
-  { month: "Jun", "Annee N-1": 10400, "Annee en cours": 12450 },
-];
-
-const monthlyPurchases = [
-  { month: "Jul", "Annee N-1": 2800, "Annee en cours": 3100 },
-  { month: "Aou", "Annee N-1": 3050, "Annee en cours": 3380 },
-  { month: "Sep", "Annee N-1": 3210, "Annee en cours": 3520 },
-  { month: "Oct", "Annee N-1": 3180, "Annee en cours": 3440 },
-  { month: "Nov", "Annee N-1": 3360, "Annee en cours": 3710 },
-  { month: "Dec", "Annee N-1": 3900, "Annee en cours": 4260 },
-  { month: "Jan", "Annee N-1": 3550, "Annee en cours": 3890 },
-  { month: "Fev", "Annee N-1": 3700, "Annee en cours": 4020 },
-  { month: "Mar", "Annee N-1": 3820, "Annee en cours": 4150 },
-  { month: "Avr", "Annee N-1": 3760, "Annee en cours": 4070 },
-  { month: "Mai", "Annee N-1": 3870, "Annee en cours": 4210 },
-  { month: "Jun", "Annee N-1": 3950, "Annee en cours": 4280 },
-];
-
-const balanceEvolution = Array.from({ length: 30 }, (_, index) => {
-  const day = String(index + 1).padStart(2, "0");
-  const drift = index * 52;
-  const wave = Math.round(Math.sin(index / 3) * 420);
-  return {
-    day,
-    Solde: 6900 + drift + wave,
-  };
-});
-
-const kpis = [
-  {
-    indicator: "up",
-    label: "Marge brute",
-    tone: "text-emerald-600",
-    value: "66%",
-  },
-  {
-    indicator: "up",
-    label: "EBE Cash",
-    tone: "text-emerald-600",
-    value: "5 870 EUR",
-  },
-  {
-    indicator: "neutral",
-    label: "Tresorerie fin de mois",
-    tone: "text-slate-500",
-    value: "9 240 EUR",
-  },
-  {
-    indicator: "ok",
-    label: "Premier mois critique",
-    tone: "text-emerald-600",
-    value: "Aucun",
-  },
+const MONTH_LABELS = [
+  "Jan",
+  "Fev",
+  "Mar",
+  "Avr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Aou",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ] as const;
 
-function DemoDataNotice() {
-  return (
-    <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-      <p className="font-semibold">Données de démonstration</p>
-      <p className="mt-1">
-        Les chiffres affichés ci-dessous sont fictifs, le temps que vos
-        données réelles soient connectées. Utilisez les onglets Factures,
-        Cash-flow et Banque pour saisir et consulter vos vraies données.
-      </p>
-    </div>
-  );
-}
+const FULL_MONTH_LABELS = [
+  "janvier",
+  "fevrier",
+  "mars",
+  "avril",
+  "mai",
+  "juin",
+  "juillet",
+  "aout",
+  "septembre",
+  "octobre",
+  "novembre",
+  "decembre",
+] as const;
 
-export function RestaurantDashboard() {
+type Props = {
+  dashboard: DashboardSummary | null;
+  home: HomeDashboardSummary | null;
+  openingCash: string;
+  performance: MonthlyPerformanceSummary | null;
+  period: string;
+};
+
+export function RestaurantDashboard({
+  dashboard,
+  home,
+  openingCash,
+  performance,
+  period,
+}: Props) {
+  const navSuffix = `period=${period}&openingCash=${openingCash}`;
+
+  if (!home) {
+    return (
+      <div className="rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+        <p className="font-semibold">Donnees indisponibles</p>
+        <p className="mt-1">
+          Impossible de charger le tableau de bord. Verifie que le backend
+          est lance, puis recharge la page.
+        </p>
+      </div>
+    );
+  }
+
+  const series = home.monthly_series;
+  const latest = series[series.length - 1] ?? null;
+  const hasSalesHistory = series.some((point) => Number(point.sales_ht) > 0);
+  const hasPurchasesHistory = series.some(
+    (point) => Number(point.purchases_ht) > 0,
+  );
+  const hasAnyData =
+    hasSalesHistory || hasPurchasesHistory || home.bank_connected;
+
+  const salesChart = buildChartData(series, "sales_ht", "sales_prior_ht");
+  const purchasesChart = buildChartData(
+    series,
+    "purchases_ht",
+    "purchases_prior_ht",
+  );
+  const bankChart = home.bank_flow.map((point) => ({
+    day: formatShortDate(point.day),
+    "Flux net": Number(point.cumulative_flow),
+  }));
+
   return (
     <div className="flex flex-col gap-8">
-      <DemoDataNotice />
+      {!hasAnyData ? <OnboardingNotice navSuffix={navSuffix} /> : null}
 
       <section className="grid auto-rows-fr gap-6 lg:grid-cols-2">
         <MetricCard
-          action="Saisir mes ventes"
+          actionHref={`/cash-flow?${navSuffix}`}
+          actionLabel="Saisir mes ventes"
           chart={
-            <BarChart
-              categories={["Annee N-1", "Annee en cours"]}
-              className="h-44"
-              colors={["slate", "emerald"]}
-              data={monthlySales}
-              index="month"
-              showAnimation
-              showGridLines={false}
-              showLegend={true}
-              showXAxis={true}
-              showYAxis={false}
-              yAxisWidth={0}
-            />
+            hasSalesHistory ? (
+              <BarChart
+                categories={salesChart.categories}
+                className="h-44"
+                colors={salesChart.categories.length === 2
+                  ? ["slate", "emerald"]
+                  : ["emerald"]}
+                data={salesChart.rows}
+                index="month"
+                showAnimation
+                showGridLines={false}
+                showLegend={salesChart.categories.length === 2}
+                showXAxis={true}
+                showYAxis={false}
+                yAxisWidth={0}
+              />
+            ) : (
+              <EmptyChart message="Aucune vente saisie pour l'instant." />
+            )
           }
-          pill="+12% vs juin 2025"
+          pill={yoyPill(latest?.sales_ht, latest?.sales_prior_ht, period)}
           pillTone="bg-emerald-50 text-emerald-700 ring-emerald-200"
           subtitle="Total ventes HT du mois"
           title="Ventes"
           titleTone="text-emerald-600"
-          value="12 450 EUR"
+          value={formatEur(latest?.sales_ht)}
         />
 
         <MetricCard
-          action="Importer une facture"
+          actionHref={`/invoices?${navSuffix}`}
+          actionLabel="Importer une facture"
           chart={
-            <BarChart
-              categories={["Annee N-1", "Annee en cours"]}
-              className="h-44"
-              colors={["slate", "rose"]}
-              data={monthlyPurchases}
-              index="month"
-              showAnimation
-              showGridLines={false}
-              showLegend={true}
-              showXAxis={true}
-              showYAxis={false}
-              yAxisWidth={0}
-            />
+            hasPurchasesHistory ? (
+              <BarChart
+                categories={purchasesChart.categories}
+                className="h-44"
+                colors={purchasesChart.categories.length === 2
+                  ? ["slate", "rose"]
+                  : ["rose"]}
+                data={purchasesChart.rows}
+                index="month"
+                showAnimation
+                showGridLines={false}
+                showLegend={purchasesChart.categories.length === 2}
+                showXAxis={true}
+                showYAxis={false}
+                yAxisWidth={0}
+              />
+            ) : (
+              <EmptyChart message="Aucune facture validee pour l'instant." />
+            )
           }
-          pill="+8% vs juin 2025"
+          pill={yoyPill(latest?.purchases_ht, latest?.purchases_prior_ht, period)}
           pillTone="bg-rose-50 text-rose-700 ring-rose-200"
-          sideStats={[
-            { label: "3 a valider" },
-            { label: "1 en retard" },
-          ]}
+          sideStats={
+            dashboard && dashboard.invoices_to_review_count > 0
+              ? [
+                  {
+                    label: `${dashboard.invoices_to_review_count} a valider`,
+                  },
+                ]
+              : []
+          }
           subtitle="Total achats HT valides"
           title="Achats"
           titleTone="text-rose-600"
-          value="4 280 EUR"
+          value={formatEur(latest?.purchases_ht)}
         />
 
         <MetricCard
-          action="Voir les transactions"
-          chart={
-            <AreaChart
-              categories={["Solde"]}
-              className="h-36"
-              colors={["sky"]}
-              data={balanceEvolution}
-              index="day"
-              showAnimation
-              showGridLines={false}
-              showLegend={false}
-              showXAxis={false}
-              showYAxis={false}
-              yAxisWidth={0}
-            />
+          actionHref={`/bank?${navSuffix}`}
+          actionLabel={
+            home.bank_connected ? "Voir les transactions" : "Connecter ma banque"
           }
-          pill="+1 240 EUR depuis le 1er juin"
+          chart={
+            home.bank_connected && bankChart.length > 0 ? (
+              <AreaChart
+                categories={["Flux net"]}
+                className="h-36"
+                colors={["sky"]}
+                data={bankChart}
+                index="day"
+                showAnimation
+                showGridLines={false}
+                showLegend={false}
+                showXAxis={false}
+                showYAxis={false}
+                yAxisWidth={0}
+              />
+            ) : (
+              <EmptyChart
+                message={
+                  home.bank_connected
+                    ? "Aucune transaction sur les 30 derniers jours."
+                    : "Connectez votre banque pour suivre vos mouvements."
+                }
+              />
+            )
+          }
+          pill={home.bank_connected ? "Flux net sur 30 jours" : "Non connectee"}
           pillTone="bg-sky-50 text-sky-700 ring-sky-200"
-          sideStats={[{ label: "12 transactions a categoriser" }]}
-          subtitle="Solde estime"
+          sideStats={
+            home.unpaid_invoices_count > 0
+              ? [
+                  {
+                    label: `${home.unpaid_invoices_count} facture${
+                      home.unpaid_invoices_count > 1 ? "s" : ""
+                    } sans paiement`,
+                  },
+                ]
+              : []
+          }
+          subtitle="Mouvements bancaires"
           title="Banque"
           titleTone="text-sky-600"
-          value="8 320 EUR"
+          value={home.bank_connected ? formatEur(home.bank_net_flow) : "-"}
         />
 
-        <KpiCard />
+        <KpiCard
+          dashboard={dashboard}
+          navSuffix={navSuffix}
+          performance={performance}
+        />
       </section>
     </div>
   );
 }
 
+function OnboardingNotice({ navSuffix }: { navSuffix: string }) {
+  return (
+    <div className="rounded-md border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+      <p className="font-semibold">Bienvenue sur Zen Compta</p>
+      <p className="mt-1">
+        Commencez par{" "}
+        <Link className="font-semibold underline" href={`/cash-flow?${navSuffix}`}>
+          saisir vos ventes du mois
+        </Link>{" "}
+        ou{" "}
+        <Link className="font-semibold underline" href={`/invoices?${navSuffix}`}>
+          importer une premiere facture
+        </Link>
+        . Vos chiffres apparaitront ici automatiquement.
+      </p>
+    </div>
+  );
+}
+
+function EmptyChart({ message }: { message: string }) {
+  return (
+    <div className="flex h-36 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 text-center text-sm text-slate-500">
+      {message}
+    </div>
+  );
+}
+
+function buildChartData(
+  series: HomeDashboardSummary["monthly_series"],
+  currentKey: "purchases_ht" | "sales_ht",
+  priorKey: "purchases_prior_ht" | "sales_prior_ht",
+) {
+  const hasPrior = series.some((point) => point[priorKey] !== null);
+  const rows = series.map((point) => {
+    const row: Record<string, number | string> = {
+      month: monthLabel(point.month),
+      "Annee en cours": Number(point[currentKey]),
+    };
+    if (hasPrior) {
+      row["Annee N-1"] = Number(point[priorKey] ?? 0);
+    }
+    return row;
+  });
+  const categories = hasPrior
+    ? ["Annee N-1", "Annee en cours"]
+    : ["Annee en cours"];
+  return { categories, rows };
+}
+
+function formatShortDate(dateText: string) {
+  const [, month, day] = dateText.split("-");
+  if (!month || !day) {
+    return dateText;
+  }
+  return `${day}/${month}`;
+}
+
+function monthLabel(monthDate: string) {
+  const month = Number(monthDate.split("-")[1] ?? "0");
+  return MONTH_LABELS[month - 1] ?? monthDate;
+}
+
+function formatEur(value: string | null | undefined) {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+  return new Intl.NumberFormat("fr-FR", {
+    currency: "EUR",
+    maximumFractionDigits: 0,
+    style: "currency",
+  }).format(Number(value));
+}
+
+function yoyPill(
+  current: string | null | undefined,
+  prior: string | null | undefined,
+  period: string,
+) {
+  if (!current || !prior || Number(prior) === 0) {
+    return null;
+  }
+  const rate = (Number(current) / Number(prior) - 1) * 100;
+  const rounded = Math.round(rate);
+  const month = Number(period.split("-")[1] ?? "0");
+  const year = Number(period.split("-")[0] ?? "0") - 1;
+  const label = FULL_MONTH_LABELS[month - 1] ?? "";
+  return `${rounded >= 0 ? "+" : ""}${rounded}% vs ${label} ${year}`;
+}
+
 function MetricCard({
-  action,
+  actionHref,
+  actionLabel,
   chart,
   pill,
   pillTone,
@@ -195,9 +335,10 @@ function MetricCard({
   titleTone,
   value,
 }: {
-  action: string;
+  actionHref: string;
+  actionLabel: string;
   chart: React.ReactNode;
-  pill: string;
+  pill: string | null;
   pillTone: string;
   sideStats?: Array<{ label: string }>;
   subtitle: string;
@@ -212,13 +353,6 @@ function MetricCard({
           <h2 className={cn("text-lg font-semibold", titleTone)}>{title}</h2>
           <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
         </div>
-        <button
-          aria-label={`Menu ${title}`}
-          className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-700"
-          type="button"
-        >
-          <MoreHorizontal className="size-5" />
-        </button>
       </div>
 
       <div className="mt-7 grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
@@ -226,14 +360,16 @@ function MetricCard({
           <p className="font-sans text-4xl font-bold tabular-nums tracking-normal text-slate-950">
             {value}
           </p>
-          <span
-            className={cn(
-              "mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1",
-              pillTone,
-            )}
-          >
-            {pill}
-          </span>
+          {pill ? (
+            <span
+              className={cn(
+                "mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1",
+                pillTone,
+              )}
+            >
+              {pill}
+            </span>
+          ) : null}
         </div>
         {sideStats.length > 0 ? (
           <div className="flex flex-col gap-3 sm:items-end">
@@ -252,13 +388,65 @@ function MetricCard({
       <div className="mt-6 flex-1">{chart}</div>
 
       <div className="mt-6">
-        <Button>{action}</Button>
+        <Link className={buttonVariants()} href={actionHref}>
+          {actionLabel}
+        </Link>
       </div>
     </Card>
   );
 }
 
-function KpiCard() {
+function KpiCard({
+  dashboard,
+  navSuffix,
+  performance,
+}: {
+  dashboard: DashboardSummary | null;
+  navSuffix: string;
+  performance: MonthlyPerformanceSummary | null;
+}) {
+  const salesHt = performance ? Number(performance.performance.sales_ht) : 0;
+  const grossMargin =
+    performance && salesHt > 0
+      ? Math.round(
+          ((salesHt -
+            Number(performance.performance.raw_materials_ht) -
+            Number(performance.performance.packaging_ht)) /
+            salesHt) *
+            100,
+        )
+      : null;
+  const ebeCash = performance
+    ? Number(performance.performance.ebe_cash)
+    : null;
+  const estimatedCash = dashboard ? Number(dashboard.estimated_cash) : null;
+  const toReview = dashboard ? dashboard.invoices_to_review_count : null;
+  const healthy = estimatedCash === null || estimatedCash >= 0;
+
+  const kpis = [
+    {
+      indicator: trendIndicator(grossMargin),
+      label: "Marge brute",
+      value: grossMargin === null ? "-" : `${grossMargin}%`,
+    },
+    {
+      indicator: trendIndicator(ebeCash),
+      label: "EBE Cash",
+      value: ebeCash === null ? "-" : formatEur(String(ebeCash)),
+    },
+    {
+      indicator: trendIndicator(estimatedCash),
+      label: "Tresorerie fin de mois",
+      value:
+        estimatedCash === null ? "-" : formatEur(String(estimatedCash)),
+    },
+    {
+      indicator: toReview === 0 ? ("ok" as const) : ("neutral" as const),
+      label: "Factures a valider",
+      value: toReview === null ? "-" : String(toReview),
+    },
+  ];
+
   return (
     <Card className="flex h-full min-h-[420px] flex-col p-6">
       <div className="flex items-start justify-between gap-4">
@@ -270,18 +458,16 @@ function KpiCard() {
             Indicateurs du mois courant
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-            Sante: OK
-          </span>
-          <button
-            aria-label="Menu Chiffres cles"
-            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-700"
-            type="button"
-          >
-            <MoreHorizontal className="size-5" />
-          </button>
-        </div>
+        <span
+          className={cn(
+            "rounded-full px-3 py-1 text-xs font-semibold ring-1",
+            healthy
+              ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+              : "bg-rose-50 text-rose-700 ring-rose-200",
+          )}
+        >
+          {healthy ? "Sante: OK" : "Sante: attention"}
+        </span>
       </div>
 
       <div className="mt-8 flex flex-1 flex-col divide-y divide-slate-100">
@@ -294,30 +480,40 @@ function KpiCard() {
             <p className="font-sans text-lg font-semibold tabular-nums text-slate-950">
               {kpi.value}
             </p>
-            <TrendIcon indicator={kpi.indicator} tone={kpi.tone} />
+            <TrendIcon indicator={kpi.indicator} />
           </div>
         ))}
       </div>
 
       <div className="mt-6">
-        <Button>Voir la prevision complete</Button>
+        <Link className={buttonVariants()} href={`/forecast?${navSuffix}`}>
+          Voir la prevision complete
+        </Link>
       </div>
     </Card>
   );
 }
 
+function trendIndicator(value: number | null): "down" | "neutral" | "up" {
+  if (value === null || value === 0) {
+    return "neutral";
+  }
+  return value > 0 ? "up" : "down";
+}
+
 function TrendIcon({
   indicator,
-  tone,
 }: {
-  indicator: "neutral" | "ok" | "up";
-  tone: string;
+  indicator: "down" | "neutral" | "ok" | "up";
 }) {
   if (indicator === "ok") {
-    return <CheckCircle2 className={cn("size-5", tone)} />;
+    return <CheckCircle2 className="size-5 text-emerald-600" />;
   }
   if (indicator === "neutral") {
-    return <Minus className={cn("size-5", tone)} />;
+    return <Minus className="size-5 text-slate-500" />;
   }
-  return <ArrowUpRight className={cn("size-5", tone)} />;
+  if (indicator === "down") {
+    return <ArrowDownRight className="size-5 text-rose-600" />;
+  }
+  return <ArrowUpRight className="size-5 text-emerald-600" />;
 }

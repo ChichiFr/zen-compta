@@ -28,3 +28,5 @@ export function Button({ className, variant, ...props }: ButtonProps) {
     <button className={cn(buttonVariants({ variant }), className)} {...props} />
   );
 }
+
+export { buttonVariants };

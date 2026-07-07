@@ -12,6 +12,7 @@ import type {
   BankUnpaidInvoice,
   DashboardSummary,
   DocumentImportUpload,
+  HomeDashboardSummary,
   Invoice,
   InvoiceLineInput,
   MonthlyCashFlowInputs,
@@ -92,6 +93,13 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<ApiResult
   } catch {
     return { data: null, error: "backend_unavailable" };
   }
+}
+
+export async function getHomeDashboard(periodStart: string) {
+  const params = new URLSearchParams({ period_start: periodStart });
+  return fetchJson<HomeDashboardSummary>(
+    `/dashboard/home?${params.toString()}`,
+  );
 }
 
 export async function getDashboardSummary(
