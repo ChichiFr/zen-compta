@@ -4,6 +4,28 @@ from decimal import Decimal
 from pydantic import BaseModel
 
 
+class HomeMonthlyPoint(BaseModel):
+    month: date
+    sales_ht: Decimal
+    sales_prior_ht: Decimal | None
+    purchases_ht: Decimal
+    purchases_prior_ht: Decimal | None
+
+
+class HomeBankFlowPoint(BaseModel):
+    day: date
+    cumulative_flow: Decimal
+
+
+class HomeDashboardSummary(BaseModel):
+    period_start: date
+    monthly_series: list[HomeMonthlyPoint]
+    bank_connected: bool
+    bank_flow: list[HomeBankFlowPoint]
+    bank_net_flow: Decimal
+    unpaid_invoices_count: int
+
+
 class DashboardSummary(BaseModel):
     period_start: date
     invoices_to_review_count: int

@@ -5,14 +5,23 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.dashboard import DashboardSummary
+from app.schemas.dashboard import DashboardSummary, HomeDashboardSummary
 from app.services.dashboard_service import DashboardService
+from app.services.home_dashboard_service import HomeDashboardService
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 def get_dashboard_service(db: Session = Depends(get_db)) -> DashboardService:
     return DashboardService(db)
+
+
+@router.get("/home", response_model=HomeDashboardSummary)
+def get_home_dashboard(
+    period_start: date,
+    db: Session = Depends(get_db),
+) -> HomeDashboardSummary:
+    return HomeDashboardService(db).summary(period_start)
 
 
 @router.get("/summary", response_model=DashboardSummary)
